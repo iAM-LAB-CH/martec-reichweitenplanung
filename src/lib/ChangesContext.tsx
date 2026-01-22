@@ -1,0 +1,128 @@
+'use client';
+
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { CellChange, CellChangeField } from './types';
+
+interface ChangesContextType {
+  changes: CellChange[];
+  addChange: (change: Omit<CellChange, 'id' | 'timestamp'>) => void;
+  updateChange: (id: string, updates: Partial<Omit<CellChange, 'id'>>) => void;
+  removeChange: (id: string) => void;
+  getChangeForCell: (
+    articleId: string,
+    field: CellChangeField,
+    weekOrOrderId?: string
+  ) => CellChange | undefined;
+  getChangesForArticle: (articleId: string) => CellChange[];
+  getEffectiveValue: (
+    articleId: string,
+    field: CellChangeField,
+    originalValue: number,
+    weekOrOrderId?: string
+  ) => number;
+}
+
+const ChangesContext = createContext<ChangesContextType | undefined>(undefined);
+
+let changeIdCounter = 0;
+
+export function ChangesProvider({ children }: { children: ReactNode }) {
+  const [changes, setChanges] = useState<CellChange[]>([]);
+
+  const addChange = useCallback((change: Omit<CellChange, 'id' | 'timestamp'>) => {
+    const id = `change-${++changeIdCounter}`;
+    const newChange: CellChange = {
+      ...change,
+      id,
+      timestamp: new Date(),
+    };
+    
+    setChanges((prev) => {
+      // Remove existing change for the same cell if exists
+      const filtered = prev.filter(
+        (c) =>
+          !(
+            c.articleId === change.articleId &&
+            c.field === change.field &&
+            c.week === change.week &&
+            c.orderId === change.orderId
+          )
+      );
+      return [...filtered, newChange];
+    });
+  }, []);
+
+  const updateChange = useCallback((id: string, updates: Partial<Omit<CellChange, 'id'>>) => {
+    setChanges((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, ...updates, timestamp: new Date() }
+          : c
+      )
+    );
+  }, []);
+
+  const removeChange = useCallback((id: string) => {
+    setChanges((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const getChangeForCell = useCallback(
+    (articleId: string, field: CellChangeField, weekOrOrderId?: string) => {
+      return changes.find((c) => {
+        if (c.articleId !== articleId || c.field !== field) return false;
+        if (field === 'forecast' || field === 'orders') {
+          return c.week === weekOrOrderId;
+        } else {
+          return c.orderId === weekOrOrderId;
+        }
+      });
+    },
+    [changes]
+  );
+
+  const getChangesForArticle = useCallback(
+    (articleId: string) => {
+      return changes
+        .filter((c) => c.articleId === articleId)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    },
+    [changes]
+  );
+
+  const getEffectiveValue = useCallback(
+    (
+      articleId: string,
+      field: CellChangeField,
+      originalValue: number,
+      weekOrOrderId?: string
+    ) => {
+      const change = getChangeForCell(articleId, field, weekOrOrderId);
+      return change ? change.newValue : originalValue;
+    },
+    [getChangeForCell]
+  );
+
+  return (
+    <ChangesContext.Provider
+      value={{
+        changes,
+        addChange,
+        updateChange,
+        removeChange,
+        getChangeForCell,
+        getChangesForArticle,
+        getEffectiveValue,
+      }}
+    >
+      {children}
+    </ChangesContext.Provider>
+  );
+}
+
+export function useChanges() {
+  const context = useContext(ChangesContext);
+  if (!context) {
+    throw new Error('useChanges must be used within a ChangesProvider');
+  }
+  return context;
+}
