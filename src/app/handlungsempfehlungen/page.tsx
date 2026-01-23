@@ -350,7 +350,7 @@ export default function HandlungsempfehlungenPage() {
                       <Collapse in={expandedRows.has(article.id)} timeout="auto" unmountOnExit>
                         <Box sx={{ py: 2, px: 2, bgcolor: 'grey.50', overflow: 'hidden', width: '100%' }}>
                           <Box sx={{ overflowX: 'auto', maxWidth: '100%' }}>
-                            <ForecastTable weeklyData={article.weeklyData} articleId={article.id} compact variant="recommendations" />
+                            <ForecastTable weeklyData={article.weeklyData} articleId={article.id} compact variant="detail" />
                           </Box>
                         </Box>
                       </Collapse>

@@ -125,6 +125,8 @@ const rawArticles: Article[] = [
       bestellfrist: '23.05.2026',
       erschoepfungsprognose: '12.06.2026',
       mindesthaltbarkeit: '12.10.2028',
+      einheitenProPalett: 800,
+      lagerkostenProEinheit: 0.25,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 2000, forecast: 1000, orders: 7000, lagerDelta: 1000, budget: 1200 },
@@ -170,6 +172,8 @@ const rawArticles: Article[] = [
       bestellfrist: '20.05.2026',
       erschoepfungsprognose: '18.06.2026',
       mindesthaltbarkeit: '15.08.2027',
+      einheitenProPalett: 400,
+      lagerkostenProEinheit: 0.18,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 8000, forecast: 2500, orders: 0, lagerDelta: 5500, budget: 2900 },
@@ -210,6 +214,8 @@ const rawArticles: Article[] = [
       bestellfrist: '10.06.2026',
       erschoepfungsprognose: '25.06.2026',
       mindesthaltbarkeit: '01.06.2028',
+      einheitenProPalett: 600,
+      lagerkostenProEinheit: 0.12,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 4500, forecast: 800, orders: 0, lagerDelta: 3700, budget: 900 },
@@ -250,6 +256,8 @@ const rawArticles: Article[] = [
       bestellfrist: '15.06.2026',
       erschoepfungsprognose: '01.07.2026',
       mindesthaltbarkeit: '15.12.2027',
+      einheitenProPalett: 500,
+      lagerkostenProEinheit: 0.10,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 3000, forecast: 1200, orders: 0, lagerDelta: 1800, budget: 1400 },
@@ -291,6 +299,8 @@ const rawArticles: Article[] = [
       bestellfrist: '20.06.2026',
       erschoepfungsprognose: '10.07.2026',
       mindesthaltbarkeit: '01.03.2028',
+      einheitenProPalett: 700,
+      lagerkostenProEinheit: 0.14,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 3000, forecast: 1200, orders: 0, lagerDelta: 1800, budget: 1400 },
@@ -332,6 +342,8 @@ const rawArticles: Article[] = [
       bestellfrist: '25.06.2026',
       erschoepfungsprognose: '15.07.2026',
       mindesthaltbarkeit: '30.09.2027',
+      einheitenProPalett: 350,
+      lagerkostenProEinheit: 0.22,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 5000, forecast: 800, orders: 0, lagerDelta: 4200, budget: 900 },
@@ -372,6 +384,8 @@ const rawArticles: Article[] = [
       bestellfrist: '12.06.2026',
       erschoepfungsprognose: '28.06.2026',
       mindesthaltbarkeit: '15.11.2027',
+      einheitenProPalett: 450,
+      lagerkostenProEinheit: 0.16,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 4000, forecast: 1000, orders: 0, lagerDelta: 3000, budget: 1200 },
@@ -412,6 +426,8 @@ const rawArticles: Article[] = [
       bestellfrist: '14.06.2026',
       erschoepfungsprognose: '30.06.2026',
       mindesthaltbarkeit: '01.01.2029',
+      einheitenProPalett: 1000,
+      lagerkostenProEinheit: 0.08,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 8000, forecast: 1500, orders: 0, lagerDelta: 6500, budget: 1700 },
@@ -452,6 +468,8 @@ const rawArticles: Article[] = [
       bestellfrist: '16.06.2026',
       erschoepfungsprognose: '02.07.2026',
       mindesthaltbarkeit: '20.05.2028',
+      einheitenProPalett: 300,
+      lagerkostenProEinheit: 0.20,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 1500, forecast: 500, orders: 0, lagerDelta: 1000, budget: 580 },
@@ -493,6 +511,8 @@ const rawArticles: Article[] = [
       bestellfrist: '18.06.2026',
       erschoepfungsprognose: '05.07.2026',
       mindesthaltbarkeit: '10.08.2028',
+      einheitenProPalett: 550,
+      lagerkostenProEinheit: 0.13,
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 4000, forecast: 900, orders: 0, lagerDelta: 3100, budget: 1000 },

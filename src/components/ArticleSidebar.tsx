@@ -119,6 +119,22 @@ export default function ArticleSidebar({
                 secondaryTypographyProps={{ variant: 'body1', color: 'text.primary' }}
               />
             </ListItem>
+            <ListItem>
+              <ListItemText
+                primary="Einheiten pro Palett"
+                secondary={article.artikelDetails.einheitenProPalett.toLocaleString('de-CH')}
+                primaryTypographyProps={{ variant: 'body2', color: 'text.secondary' }}
+                secondaryTypographyProps={{ variant: 'body1', color: 'text.primary' }}
+              />
+            </ListItem>
+            <ListItem>
+              <ListItemText
+                primary="Lagerkosten pro Einheit"
+                secondary={`CHF ${article.artikelDetails.lagerkostenProEinheit.toFixed(2)}`}
+                primaryTypographyProps={{ variant: 'body2', color: 'text.secondary' }}
+                secondaryTypographyProps={{ variant: 'body1', color: 'text.primary' }}
+              />
+            </ListItem>
           </List>
         </Box>
 

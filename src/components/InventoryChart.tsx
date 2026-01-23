@@ -86,9 +86,6 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
   // Add some padding below if we have negative values
   const adjustedMinValue = minValue < 0 ? minValue * 1.15 : minValue * 0.9;
   
-  // Check if we need to show the zero line (data crosses zero)
-  const showZeroLine = adjustedMinValue < 0 && maxValue > 0;
-
   return (
     <Box sx={{ width: '100%', height: 300 }}>
       {/* Legend at top right */}
@@ -112,7 +109,7 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Box sx={{ width: 16, height: 2, bgcolor: '#9e9e9e' }} />
+          <Box sx={{ width: 16, height: 2, bgcolor: '#d0d0d0' }} />
           <Typography variant="caption" color="text.secondary">
             Budget
           </Typography>
@@ -172,7 +169,7 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
               {
                 id: 'budget',
                 data: budget,
-                color: '#9e9e9e',
+                color: '#d0d0d0',
                 showMark: false,
                 curve: 'linear' as const,
               },
@@ -208,31 +205,6 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
             }}
           />
         </Box>
-
-        {/* Zero reference line - light grey horizontal line at y=0 */}
-        {showZeroLine && (
-          <svg
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-              overflow: 'visible',
-            }}
-          >
-            <line
-              x1={marginLeft}
-              x2="100%"
-              y1={marginTop + ((maxValue - 0) / (maxValue - adjustedMinValue)) * (chartHeight - marginTop - marginBottom)}
-              y2={marginTop + ((maxValue - 0) / (maxValue - adjustedMinValue)) * (chartHeight - marginTop - marginBottom)}
-              stroke="#9e9e9e"
-              strokeWidth={1.5}
-              strokeDasharray="none"
-            />
-          </svg>
-        )}
       </Box>
     </Box>
   );

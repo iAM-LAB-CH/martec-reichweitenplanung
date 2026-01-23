@@ -50,6 +50,8 @@ export interface Article {
     bestellfrist: string;
     erschoepfungsprognose: string;
     mindesthaltbarkeit: string;
+    einheitenProPalett: number;
+    lagerkostenProEinheit: number; // in CHF
   };
   weeklyData: WeeklyData[];
   orders: {
