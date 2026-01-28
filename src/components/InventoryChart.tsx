@@ -30,40 +30,47 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
 
   const weeks = weeklyData.map((d) => d.week);
   
-  // Get effective values with changes applied
+  // Get effective values with changes applied (using new field names)
   const effectiveData = useMemo(() => {
     if (!articleId) return weeklyData;
     
-    return weeklyData.map((d) => ({
-      ...d,
-      forecast: getEffectiveValue(articleId, 'forecast', d.forecast, d.week),
-      orders: getEffectiveValue(articleId, 'orders', d.orders, d.week),
-    }));
+    return weeklyData.map((d) => {
+      // Get baseline and promo changes
+      const newBaseline = getEffectiveValue(articleId, 'salesForecastBaseline', d.salesForecastBreakdown.baseline, d.week);
+      const newKartonware = getEffectiveValue(articleId, 'salesForecastPromoKartonware', d.salesForecastBreakdown.promo.kartonware, d.week);
+      const newDisplays = getEffectiveValue(articleId, 'salesForecastPromoDisplays', d.salesForecastBreakdown.promo.displays, d.week);
+      
+      // Recalculate forecast from breakdown
+      const newForecast = newBaseline + newKartonware + newDisplays;
+      
+      return {
+        ...d,
+        salesLatestForecast: newForecast,
+      };
+    });
   }, [weeklyData, articleId, getEffectiveValue]);
 
   // Recalculate lagerbestand based on changes - allow negative values
   const recalculatedLagerbestand = useMemo(() => {
-    if (!hasChanges) return effectiveData.map((d) => d.lagerbestand);
+    if (!hasChanges) return effectiveData.map((d) => d.lagerbestandEnde);
     
     const result: number[] = [];
-    let currentStock = effectiveData[0]?.lagerbestand || 0;
+    let currentStock = effectiveData[0]?.lagerbestandAnfang || 0;
     
     for (let i = 0; i < effectiveData.length; i++) {
-      if (i === 0) {
-        result.push(currentStock);
-      } else {
-        // Stock = previous stock - forecast + orders (allow negative)
-        currentStock = result[i - 1] - effectiveData[i - 1].forecast + effectiveData[i].orders;
-        result.push(currentStock);
-      }
+      // Calculate end of week: Anfang - MAX(Forecast, Orders) + Procurement
+      const d = effectiveData[i];
+      const salesDeduction = Math.max(d.salesLatestForecast, d.salesOrderImSystem);
+      const endStock = (i === 0 ? currentStock : result[i - 1]) - salesDeduction + d.procurementPo;
+      result.push(endStock);
     }
     
     return result;
   }, [effectiveData, hasChanges]);
 
-  const lagerbestand = hasChanges ? recalculatedLagerbestand : weeklyData.map((d) => d.lagerbestand);
-  const orders = effectiveData.map((d) => d.orders);
-  const budget = weeklyData.map((d) => d.budget || d.forecast); // Budget defaults to forecast if not set
+  const lagerbestand = hasChanges ? recalculatedLagerbestand : weeklyData.map((d) => d.lagerbestandEnde);
+  const procurement = effectiveData.map((d) => d.procurementPo);
+  const budget = weeklyData.map((d) => d.salesBudget);
 
   // Split data for solid (current/past) and dashed (forecast) lines
   // Solid line: from start up to and including currentWeekIndex
@@ -79,10 +86,9 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
   const marginBottom = 30;
   
   // Calculate Y-axis range from VISIBLE data so chart adapts to what's in view
-  // This uses the full vertical height effectively for the data currently visible
   const allLagerbestandValues = lagerbestand;
   const minValue = Math.min(...allLagerbestandValues);
-  const maxValue = Math.max(...allLagerbestandValues, ...orders, ...budget) * 1.15;
+  const maxValue = Math.max(...allLagerbestandValues, ...procurement, ...budget) * 1.15;
   // Add some padding below if we have negative values
   const adjustedMinValue = minValue < 0 ? minValue * 1.15 : minValue * 0.9;
   
@@ -116,11 +122,11 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Box sx={{ width: 12, height: 10, bgcolor: '#26a69a', borderRadius: 0.5 }} />
-          <Typography variant="caption" color="text.secondary">Orders</Typography>
+          <Typography variant="caption" color="text.secondary">Procurement</Typography>
         </Box>
       </Box>
       <Box sx={{ position: 'relative', height: chartHeight }}>
-        {/* Bar chart for orders */}
+        {/* Bar chart for procurement */}
         <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
           <BarChart
             xAxis={[{ 
@@ -136,7 +142,7 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
             }]}
             series={[
               {
-                data: orders,
+                data: procurement,
                 color: '#26a69a',
               },
             ]}
@@ -209,4 +215,3 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
     </Box>
   );
 }
-

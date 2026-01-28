@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Box,
@@ -12,9 +12,11 @@ import {
   Card,
   CardContent,
   Fab,
+  Badge,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import LinkIcon from '@mui/icons-material/Link';
 import StatusChip from '@/components/StatusChip';
 import LagerbestandProjection from '@/components/LagerbestandProjection';
 import OrdersSection from '@/components/OrdersSection';
@@ -24,6 +26,7 @@ import {
   getNextArticleId,
   getPreviousArticleId,
 } from '@/lib/dummyData';
+import { usePOLink } from '@/lib/POLinkContext';
 
 export default function ArtikelDetailPage() {
   const router = useRouter();
@@ -33,6 +36,25 @@ export default function ArtikelDetailPage() {
   const article = useMemo(() => getArticleById(articleId), [articleId]);
   const nextId = useMemo(() => getNextArticleId(articleId), [articleId]);
   const prevId = useMemo(() => getPreviousArticleId(articleId), [articleId]);
+
+  // PO linking state from context
+  const { getUnlinkedPOs, linkPO, initializeFromArticle } = usePOLink();
+
+  // Initialize PO link state when article loads
+  useEffect(() => {
+    if (article) {
+      initializeFromArticle(article);
+    }
+  }, [article, initializeFromArticle]);
+
+  // Get unlinked POs from context
+  const unlinkedPOs = useMemo(() => {
+    return getUnlinkedPOs(articleId);
+  }, [getUnlinkedPOs, articleId]);
+
+  const handleLinkPO = useCallback((week: string, poNummer: string) => {
+    linkPO(articleId, week, poNummer);
+  }, [articleId, linkPO]);
 
   if (!article) {
     return (
@@ -50,17 +72,17 @@ export default function ArtikelDetailPage() {
     if (prevId) router.push(`/artikel/${prevId}`);
   };
 
-  // Calculate OOS metrics from weekly data
-  const oosMetrics = article.weeklyData
-    .filter((w) => w.lagerbestand === 0)
-    .slice(0, 3)
-    .map((w) => ({
-      week: w.week,
-      bestellfrist: article.artikelDetails.bestellfrist,
-    }));
+  // Format number in Swiss German format
+  const formatNumber = (num: number) => {
+    return num.toLocaleString('de-CH');
+  };
 
-  // If no OOS yet, show upcoming critical week
-  const upcomingOOS = article.weeklyData.find((w) => w.lagerDelta < 0);
+  // Color for Lagerbestand Ende
+  const getLagerbestandColor = (value: number) => {
+    if (value > 0) return 'success.main';
+    if (value < 0) return 'error.main';
+    return 'text.primary';
+  };
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', overflow: 'hidden' }}>
@@ -120,7 +142,31 @@ export default function ArtikelDetailPage() {
                 </Typography>
               </Box>
             </Box>
-            <StatusChip status={article.status} size="medium" />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {unlinkedPOs.length > 0 && (
+                <Badge badgeContent={unlinkedPOs.length} color="warning">
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      px: 1.5,
+                      py: 0.5,
+                      bgcolor: 'warning.50',
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: 'warning.main',
+                    }}
+                  >
+                    <LinkIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                    <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 500 }}>
+                      Unverknüpfte POs
+                    </Typography>
+                  </Box>
+                </Badge>
+              )}
+              <StatusChip status={article.status} size="medium" />
+            </Box>
           </Box>
 
           {/* Metric Cards */}
@@ -146,20 +192,26 @@ export default function ArtikelDetailPage() {
             <Card variant="outlined" sx={{ flex: 1 }}>
               <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
                 <Typography variant="body2" color="text.secondary">
-                  Bestellfrist
+                  Lagerbestand (Ende KW)
                 </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                  {article.artikelDetails.bestellfrist}
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 500,
+                    color: getLagerbestandColor(article.lagerbestandEnde),
+                  }}
+                >
+                  {formatNumber(article.lagerbestandEnde)}
                 </Typography>
               </CardContent>
             </Card>
             <Card variant="outlined" sx={{ flex: 1 }}>
               <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
                 <Typography variant="body2" color="text.secondary">
-                  Bestellfrist
+                  Bestellen bis
                 </Typography>
                 <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                  {article.artikelDetails.bestellfrist}
+                  {article.bestellenBis}
                 </Typography>
               </CardContent>
             </Card>
@@ -175,13 +227,14 @@ export default function ArtikelDetailPage() {
             </Card>
           </Box>
 
-          {/* Chart Section */}
+          {/* Forecast Table Section */}
           <Box sx={{ p: 3 }}>
             <LagerbestandProjection
               weeklyData={article.weeklyData}
               articleId={article.id}
-              currentWeekIndex={12} // KW13 is index 12 (current week)
               variant="detail"
+              unlinkedPOs={unlinkedPOs}
+              onLinkPO={handleLinkPO}
             />
           </Box>
 
@@ -265,4 +318,3 @@ export default function ArtikelDetailPage() {
     </Box>
   );
 }
-

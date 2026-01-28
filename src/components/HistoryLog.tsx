@@ -5,7 +5,6 @@ import {
   Typography,
   List,
   ListItem,
-  ListItemText,
   Chip,
   Collapse,
   IconButton,
@@ -21,15 +20,29 @@ interface HistoryLogProps {
 }
 
 const fieldLabels: Record<CellChangeField, string> = {
-  forecast: 'Forecast',
-  orders: 'Orders',
+  salesForecastBaseline: 'Forecast Baseline',
+  salesForecastPromoKartonware: 'Promo (Kartonware)',
+  salesForecastPromoDisplays: 'Promo (Displays)',
+  procurementForecast: 'Procurement Forecast',
+  procurementForecast_mo: 'Procurement (Mo)',
+  procurementForecast_di: 'Procurement (Di)',
+  procurementForecast_mi: 'Procurement (Mi)',
+  procurementForecast_do: 'Procurement (Do)',
+  procurementForecast_fr: 'Procurement (Fr)',
   einkauf_menge: 'Einkauf',
   verkauf_menge: 'Verkauf',
 };
 
-const fieldColors: Record<CellChangeField, 'primary' | 'secondary' | 'success' | 'warning'> = {
-  forecast: 'primary',
-  orders: 'secondary',
+const fieldColors: Record<CellChangeField, 'primary' | 'secondary' | 'success' | 'warning' | 'info'> = {
+  salesForecastBaseline: 'primary',
+  salesForecastPromoKartonware: 'secondary',
+  salesForecastPromoDisplays: 'secondary',
+  procurementForecast: 'info',
+  procurementForecast_mo: 'info',
+  procurementForecast_di: 'info',
+  procurementForecast_mi: 'info',
+  procurementForecast_do: 'info',
+  procurementForecast_fr: 'info',
   einkauf_menge: 'success',
   verkauf_menge: 'warning',
 };

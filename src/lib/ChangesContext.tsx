@@ -70,9 +70,21 @@ export function ChangesProvider({ children }: { children: ReactNode }) {
     (articleId: string, field: CellChangeField, weekOrOrderId?: string) => {
       return changes.find((c) => {
         if (c.articleId !== articleId || c.field !== field) return false;
-        if (field === 'forecast' || field === 'orders') {
+        // Week-based fields (including day-level procurement forecast)
+        if ([
+          'salesForecastBaseline', 
+          'salesForecastPromoKartonware', 
+          'salesForecastPromoDisplays', 
+          'procurementForecast',
+          'procurementForecast_mo',
+          'procurementForecast_di',
+          'procurementForecast_mi',
+          'procurementForecast_do',
+          'procurementForecast_fr',
+        ].includes(field)) {
           return c.week === weekOrOrderId;
         } else {
+          // Order-based fields
           return c.orderId === weekOrOrderId;
         }
       });

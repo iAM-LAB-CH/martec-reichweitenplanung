@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Box, Typography, IconButton, Tooltip } from '@mui/material';
+import { Box, Typography, Tooltip } from '@mui/material';
 import CommentIcon from '@mui/icons-material/Comment';
 import CommentPopover from './CommentPopover';
 import { useChanges } from '@/lib/ChangesContext';
@@ -14,6 +14,7 @@ interface EditableCellProps {
   originalValue: number;
   formatValue?: (value: number) => string;
   fieldLabel?: string;
+  isEditable?: boolean; // Whether the cell is currently editable (based on temporal state)
 }
 
 export default function EditableCell({
@@ -23,6 +24,7 @@ export default function EditableCell({
   originalValue,
   formatValue = (v) => v.toLocaleString('de-CH'),
   fieldLabel = 'Wert',
+  isEditable = true,
 }: EditableCellProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
@@ -34,7 +36,9 @@ export default function EditableCell({
   const currentValue = change ? change.newValue : originalValue;
 
   const handleClick = () => {
-    setPopoverOpen(true);
+    if (isEditable) {
+      setPopoverOpen(true);
+    }
   };
 
   const handleClose = () => {
@@ -51,8 +55,10 @@ export default function EditableCell({
       addChange({
         articleId,
         field,
-        week: field === 'forecast' || field === 'orders' ? weekOrOrderId : undefined,
-        orderId: field === 'einkauf_menge' || field === 'verkauf_menge' ? weekOrOrderId : undefined,
+        week: ['salesForecastBaseline', 'salesForecastPromoKartonware', 'salesForecastPromoDisplays', 'procurementForecast'].includes(field) 
+          ? weekOrOrderId 
+          : undefined,
+        orderId: ['einkauf_menge', 'verkauf_menge'].includes(field) ? weekOrOrderId : undefined,
         originalValue,
         newValue,
         comment,
@@ -78,25 +84,31 @@ export default function EditableCell({
           alignItems: 'center',
           justifyContent: 'center',
           gap: 0.5,
-          cursor: 'pointer',
+          cursor: isEditable ? 'pointer' : 'default',
           position: 'relative',
           py: 0.5,
           px: 1,
           mx: -1,
           borderRadius: 1,
-          backgroundColor: hasChange ? 'rgba(255, 193, 7, 0.2)' : 'transparent',
+          // Gray background for editable cells (future weeks)
+          backgroundColor: hasChange 
+            ? 'rgba(255, 193, 7, 0.2)' 
+            : isEditable 
+              ? 'grey.100' 
+              : 'transparent',
           border: hasChange ? '1px solid' : '1px solid transparent',
           borderColor: hasChange ? 'warning.main' : 'transparent',
           transition: 'all 0.2s ease',
-          '&:hover': {
-            backgroundColor: hasChange ? 'rgba(255, 193, 7, 0.3)' : 'action.hover',
-          },
+          '&:hover': isEditable ? {
+            backgroundColor: hasChange ? 'rgba(255, 193, 7, 0.3)' : 'grey.200',
+          } : {},
         }}
       >
         <Typography
           variant="body2"
           sx={{
             fontWeight: hasChange ? 600 : 400,
+            color: isEditable ? 'text.primary' : 'text.secondary',
           }}
         >
           {formatValue(currentValue)}
