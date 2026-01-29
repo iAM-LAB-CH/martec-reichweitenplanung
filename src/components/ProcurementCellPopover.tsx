@@ -32,6 +32,7 @@ interface ProcurementCellPopoverProps {
   onAccept: (newValue: number, comment: string) => void;
   onReject: () => void;
   onLinkPO: (poNummer: string, poMenge: number) => void;
+  onUnlinkPO: () => void;
   fieldLabel?: string;
 }
 
@@ -47,6 +48,7 @@ export default function ProcurementCellPopover({
   onAccept,
   onReject,
   onLinkPO,
+  onUnlinkPO,
   fieldLabel = 'Procurement Forecast',
 }: ProcurementCellPopoverProps) {
   const [tabValue, setTabValue] = useState(0);
@@ -121,10 +123,22 @@ export default function ProcurementCellPopover({
         </Box>
 
         {linkedPONumber && (
-          <Box sx={{ mb: 2, p: 1.5, bgcolor: 'success.light', borderRadius: 1 }}>
+          <Box sx={{ mb: 2, p: 1.5, bgcolor: 'success.light', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="success.dark">
               Verknüpft mit: {linkedPONumber}
             </Typography>
+            <Button 
+              size="small" 
+              color="error" 
+              variant="outlined"
+              onClick={() => {
+                onUnlinkPO();
+                onClose();
+              }}
+              sx={{ ml: 1 }}
+            >
+              Entknüpfen
+            </Button>
           </Box>
         )}
 

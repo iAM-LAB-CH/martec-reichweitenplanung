@@ -33,7 +33,7 @@ export default function EditableCell({
   const cellRef = useRef<HTMLDivElement>(null);
   
   const { getChangeForCell, addChange, removeChange } = useChanges();
-  const { linkPO, getLinkedPO } = usePOLink();
+  const { linkPO, unlinkPO, getLinkedPO } = usePOLink();
   
   const change = getChangeForCell(articleId, field, weekOrOrderId, day);
   const hasChange = !!change;
@@ -90,31 +90,14 @@ export default function EditableCell({
   };
 
   const handleLinkPO = (poNummer: string, poMenge: number) => {
-    // Link the PO in the PO context
+    // Link the PO in the PO context (no activity log entry created)
     linkPO(weekOrOrderId, poNummer);
-    
-    // Also log the link as a change for the activity log
-    addChange({
-      articleId,
-      field: 'poLink',
-      week: weekOrOrderId,
-      poNummer,
-      originalValue: currentValue,
-      newValue: poMenge,
-      comment: `PO ${poNummer} verknüpft`,
-    });
-    
-    // Update the procurement forecast value to match the PO amount
-    addChange({
-      articleId,
-      field: 'procurementForecast',
-      week: weekOrOrderId,
-      originalValue,
-      newValue: poMenge,
-      comment: `Wert aus PO ${poNummer} übernommen`,
-    });
-    
     setPopoverOpen(false);
+  };
+
+  const handleUnlinkPO = () => {
+    // Unlink the PO from this week
+    unlinkPO(weekOrOrderId);
   };
 
   return (
@@ -188,6 +171,7 @@ export default function EditableCell({
           onAccept={handleAccept}
           onReject={handleReject}
           onLinkPO={handleLinkPO}
+          onUnlinkPO={handleUnlinkPO}
           fieldLabel={fieldLabel}
         />
       ) : (
