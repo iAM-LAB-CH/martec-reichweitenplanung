@@ -90,8 +90,20 @@ export default function EditableCell({
   };
 
   const handleLinkPO = (poNummer: string, poMenge: number) => {
-    // Link the PO in the PO context (no activity log entry created)
+    // Link the PO in the PO context
     linkPO(weekOrOrderId, poNummer);
+    
+    // Log the link to the activity log (no manual comment)
+    addChange({
+      articleId,
+      field: 'poLink',
+      week: weekOrOrderId,
+      poNummer,
+      originalValue: currentValue,
+      newValue: poMenge,
+      comment: '',
+    });
+    
     setPopoverOpen(false);
   };
 

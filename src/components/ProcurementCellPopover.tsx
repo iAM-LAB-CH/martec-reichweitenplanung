@@ -123,8 +123,8 @@ export default function ProcurementCellPopover({
         </Box>
 
         {linkedPONumber && (
-          <Box sx={{ mb: 2, p: 1.5, bgcolor: 'success.light', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="body2" color="success.dark">
+          <Box sx={{ mb: 2, p: 1.5, bgcolor: 'grey.100', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" color="text.primary">
               Verknüpft mit: {linkedPONumber}
             </Typography>
             <Button 
