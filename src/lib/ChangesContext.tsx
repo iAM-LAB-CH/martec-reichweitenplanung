@@ -11,15 +11,19 @@ interface ChangesContextType {
   getChangeForCell: (
     articleId: string,
     field: CellChangeField,
-    weekOrOrderId?: string
+    weekOrOrderId?: string,
+    day?: string
   ) => CellChange | undefined;
   getChangesForArticle: (articleId: string) => CellChange[];
   getEffectiveValue: (
     articleId: string,
     field: CellChangeField,
     originalValue: number,
-    weekOrOrderId?: string
+    weekOrOrderId?: string,
+    day?: string
   ) => number;
+  hasChanges: boolean;
+  clearChangesForArticle: (articleId: string) => void;
 }
 
 const ChangesContext = createContext<ChangesContextType | undefined>(undefined);
@@ -45,7 +49,8 @@ export function ChangesProvider({ children }: { children: ReactNode }) {
             c.articleId === change.articleId &&
             c.field === change.field &&
             c.week === change.week &&
-            c.orderId === change.orderId
+            c.orderId === change.orderId &&
+            c.day === change.day
           )
       );
       return [...filtered, newChange];
@@ -67,14 +72,25 @@ export function ChangesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getChangeForCell = useCallback(
-    (articleId: string, field: CellChangeField, weekOrOrderId?: string) => {
+    (articleId: string, field: CellChangeField, weekOrOrderId?: string, day?: string) => {
       return changes.find((c) => {
         if (c.articleId !== articleId || c.field !== field) return false;
+        
+        // New editable fields
+        if (['forecastBaseline', 'forecastPromoKarton', 'forecastPromoDisplays', 'procurementForecast'].includes(field)) {
+          if (day) {
+            return c.week === weekOrOrderId && c.day === day;
+          }
+          return c.week === weekOrOrderId && !c.day;
+        }
+        
+        // Legacy fields
         if (field === 'forecast' || field === 'orders') {
           return c.week === weekOrOrderId;
-        } else {
-          return c.orderId === weekOrOrderId;
         }
+        
+        // Order fields
+        return c.orderId === weekOrOrderId;
       });
     },
     [changes]
@@ -94,13 +110,20 @@ export function ChangesProvider({ children }: { children: ReactNode }) {
       articleId: string,
       field: CellChangeField,
       originalValue: number,
-      weekOrOrderId?: string
+      weekOrOrderId?: string,
+      day?: string
     ) => {
-      const change = getChangeForCell(articleId, field, weekOrOrderId);
+      const change = getChangeForCell(articleId, field, weekOrOrderId, day);
       return change ? change.newValue : originalValue;
     },
     [getChangeForCell]
   );
+
+  const clearChangesForArticle = useCallback((articleId: string) => {
+    setChanges((prev) => prev.filter((c) => c.articleId !== articleId));
+  }, []);
+
+  const hasChanges = changes.length > 0;
 
   return (
     <ChangesContext.Provider
@@ -112,6 +135,8 @@ export function ChangesProvider({ children }: { children: ReactNode }) {
         getChangeForCell,
         getChangesForArticle,
         getEffectiveValue,
+        hasChanges,
+        clearChangesForArticle,
       }}
     >
       {children}

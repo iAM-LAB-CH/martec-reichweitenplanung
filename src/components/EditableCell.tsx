@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Box, Typography, IconButton, Tooltip } from '@mui/material';
+import { Box, Typography, Tooltip } from '@mui/material';
 import CommentIcon from '@mui/icons-material/Comment';
 import CommentPopover from './CommentPopover';
 import { useChanges } from '@/lib/ChangesContext';
@@ -14,6 +14,7 @@ interface EditableCellProps {
   originalValue: number;
   formatValue?: (value: number) => string;
   fieldLabel?: string;
+  day?: string; // For day-level editing (mo, di, mi, do, fr)
 }
 
 export default function EditableCell({
@@ -23,13 +24,14 @@ export default function EditableCell({
   originalValue,
   formatValue = (v) => v.toLocaleString('de-CH'),
   fieldLabel = 'Wert',
+  day,
 }: EditableCellProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
   
   const { getChangeForCell, addChange, removeChange } = useChanges();
   
-  const change = getChangeForCell(articleId, field, weekOrOrderId);
+  const change = getChangeForCell(articleId, field, weekOrOrderId, day);
   const hasChange = !!change;
   const currentValue = change ? change.newValue : originalValue;
 
@@ -48,11 +50,22 @@ export default function EditableCell({
         removeChange(change.id);
       }
     } else {
+      // Determine the correct week/orderId based on field type
+      const isWeeklyField = [
+        'forecastBaseline', 
+        'forecastPromoKarton', 
+        'forecastPromoDisplays', 
+        'procurementForecast',
+        'forecast',
+        'orders'
+      ].includes(field);
+
       addChange({
         articleId,
         field,
-        week: field === 'forecast' || field === 'orders' ? weekOrOrderId : undefined,
-        orderId: field === 'einkauf_menge' || field === 'verkauf_menge' ? weekOrOrderId : undefined,
+        week: isWeeklyField ? weekOrOrderId : undefined,
+        orderId: !isWeeklyField ? weekOrOrderId : undefined,
+        day,
         originalValue,
         newValue,
         comment,
@@ -74,16 +87,14 @@ export default function EditableCell({
         ref={cellRef}
         onClick={handleClick}
         sx={{
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-end',
           gap: 0.5,
           cursor: 'pointer',
           position: 'relative',
-          py: 0.5,
-          px: 1,
-          mx: -1,
-          borderRadius: 1,
+          px: 0.5,
+          borderRadius: 0.5,
           backgroundColor: hasChange ? 'rgba(255, 193, 7, 0.2)' : 'transparent',
           border: hasChange ? '1px solid' : '1px solid transparent',
           borderColor: hasChange ? 'warning.main' : 'transparent',
@@ -97,6 +108,7 @@ export default function EditableCell({
           variant="body2"
           sx={{
             fontWeight: hasChange ? 600 : 400,
+            fontSize: '14px',
           }}
         >
           {formatValue(currentValue)}

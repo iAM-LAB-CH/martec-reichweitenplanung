@@ -5,6 +5,11 @@ import { Box, Typography, useTheme } from '@mui/material';
 import { LineChart, BarChart } from '@mui/x-charts';
 import { WeeklyData } from '@/lib/types';
 import { useChanges } from '@/lib/ChangesContext';
+import { 
+  calculateLagerbestandEnde, 
+  calculateForecastFromBreakdown,
+  formatNumber 
+} from '@/lib/calculations';
 
 interface InventoryChartProps {
   weeklyData: WeeklyData[];
@@ -34,36 +39,78 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
   const effectiveData = useMemo(() => {
     if (!articleId) return weeklyData;
     
-    return weeklyData.map((d) => ({
-      ...d,
-      forecast: getEffectiveValue(articleId, 'forecast', d.forecast, d.week),
-      orders: getEffectiveValue(articleId, 'orders', d.orders, d.week),
-    }));
+    return weeklyData.map((d) => {
+      // Get effective breakdown values
+      const baseline = getEffectiveValue(
+        articleId, 
+        'forecastBaseline', 
+        d.salesForecastBreakdown?.baseline ?? d.salesLatestForecast * 0.75, 
+        d.week
+      );
+      const promoKarton = getEffectiveValue(
+        articleId, 
+        'forecastPromoKarton', 
+        d.salesForecastBreakdown?.promo.kartonware ?? 0, 
+        d.week
+      );
+      const promoDisplays = getEffectiveValue(
+        articleId, 
+        'forecastPromoDisplays', 
+        d.salesForecastBreakdown?.promo.displays ?? 0, 
+        d.week
+      );
+      const procurementForecast = getEffectiveValue(
+        articleId, 
+        'procurementForecast', 
+        d.procurementBreakdown?.forecast ?? d.procurementPo, 
+        d.week
+      );
+
+      // Calculate new forecast from breakdown
+      const newForecast = baseline + promoKarton + promoDisplays;
+
+      // Calculate new procurement (use existing ordered/delivered if present, else use forecast)
+      const hasActualPOs = (d.procurementBreakdown?.ordered ?? 0) > 0 || 
+                          (d.procurementBreakdown?.delivered ?? 0) > 0;
+      const newProcurement = hasActualPOs 
+        ? (d.procurementBreakdown?.ordered ?? 0) + (d.procurementBreakdown?.delivered ?? 0)
+        : procurementForecast;
+
+      return {
+        ...d,
+        salesLatestForecast: newForecast,
+        procurementPo: newProcurement,
+      };
+    });
   }, [weeklyData, articleId, getEffectiveValue]);
 
-  // Recalculate lagerbestand based on changes - allow negative values
+  // Recalculate lagerbestandEnde based on changes - allow negative values
   const recalculatedLagerbestand = useMemo(() => {
-    if (!hasChanges) return effectiveData.map((d) => d.lagerbestand);
+    if (!hasChanges) return effectiveData.map((d) => d.lagerbestandEnde);
     
     const result: number[] = [];
-    let currentStock = effectiveData[0]?.lagerbestand || 0;
     
     for (let i = 0; i < effectiveData.length; i++) {
-      if (i === 0) {
-        result.push(currentStock);
-      } else {
-        // Stock = previous stock - forecast + orders (allow negative)
-        currentStock = result[i - 1] - effectiveData[i - 1].forecast + effectiveData[i].orders;
-        result.push(currentStock);
-      }
+      const data = effectiveData[i];
+      const prevEnde = i > 0 ? result[i - 1] : data.lagerbestandAnfang;
+      
+      // Calculate using the new formula
+      const lagerbestandEnde = calculateLagerbestandEnde(
+        i === 0 ? data.lagerbestandAnfang : prevEnde,
+        data.salesLatestForecast,
+        data.salesOrderImSystem,
+        data.procurementPo
+      );
+      
+      result.push(lagerbestandEnde);
     }
     
     return result;
   }, [effectiveData, hasChanges]);
 
-  const lagerbestand = hasChanges ? recalculatedLagerbestand : weeklyData.map((d) => d.lagerbestand);
-  const orders = effectiveData.map((d) => d.orders);
-  const budget = weeklyData.map((d) => d.budget || d.forecast); // Budget defaults to forecast if not set
+  const lagerbestand = hasChanges ? recalculatedLagerbestand : weeklyData.map((d) => d.lagerbestandEnde);
+  const orders = effectiveData.map((d) => d.procurementPo);
+  const budget = weeklyData.map((d) => d.salesBudget);
 
   // Split data for solid (current/past) and dashed (forecast) lines
   // Solid line: from start up to and including currentWeekIndex
@@ -79,7 +126,6 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
   const marginBottom = 30;
   
   // Calculate Y-axis range from VISIBLE data so chart adapts to what's in view
-  // This uses the full vertical height effectively for the data currently visible
   const allLagerbestandValues = lagerbestand;
   const minValue = Math.min(...allLagerbestandValues);
   const maxValue = Math.max(...allLagerbestandValues, ...orders, ...budget) * 1.15;
@@ -116,11 +162,11 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Box sx={{ width: 12, height: 10, bgcolor: '#26a69a', borderRadius: 0.5 }} />
-          <Typography variant="caption" color="text.secondary">Orders</Typography>
+          <Typography variant="caption" color="text.secondary">Procurement</Typography>
         </Box>
       </Box>
       <Box sx={{ position: 'relative', height: chartHeight }}>
-        {/* Bar chart for orders */}
+        {/* Bar chart for procurement/orders */}
         <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
           <BarChart
             xAxis={[{ 
@@ -209,4 +255,3 @@ export default function InventoryChart({ weeklyData, fullWeeklyData, articleId, 
     </Box>
   );
 }
-

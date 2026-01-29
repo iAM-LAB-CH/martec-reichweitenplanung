@@ -11,17 +11,19 @@ interface LagerbestandProjectionProps {
   articleId?: string;
   currentWeekIndex?: number;
   variant?: 'recommendations' | 'detail';
+  currentWeek?: number; // Current calendar week number (e.g., 13 for KW13)
 }
 
 // Column widths must match ForecastTable
-const COLUMN_WIDTH = 70; // minWidth of data columns in ForecastTable
-const STICKY_COLUMN_WIDTH = 120; // minWidth of the first sticky column
+const COLUMN_WIDTH = 60; // minWidth of data columns in ForecastTable
+const STICKY_COLUMN_WIDTH = 180; // minWidth of the first sticky column
 
 export default function LagerbestandProjection({
   weeklyData,
   articleId,
   currentWeekIndex = 12,
   variant = 'detail',
+  currentWeek = 13, // Default to KW13
 }: LagerbestandProjectionProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: Math.min(15, weeklyData.length) });
@@ -45,14 +47,30 @@ export default function LagerbestandProjection({
     setVisibleRange({ start: Math.max(0, startIndex), end: endIndex });
   }, [weeklyData.length]);
 
-  // Initial calculation on mount and when data changes
+  // Scroll to current week on mount
   useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
     // Small delay to ensure container is rendered
     const timer = setTimeout(() => {
+      // Find the index of the current week in the data
+      const currentWeekIndex = weeklyData.findIndex(
+        (w) => parseInt(w.week.replace('KW', '')) === currentWeek
+      );
+      
+      if (currentWeekIndex > 0) {
+        // Scroll to position the current week in view (with some past weeks visible)
+        // Show about 2-3 past weeks before the current week
+        const scrollToIndex = Math.max(0, currentWeekIndex - 3);
+        const scrollPosition = scrollToIndex * COLUMN_WIDTH;
+        container.scrollLeft = scrollPosition;
+      }
+      
       handleScroll();
     }, 50);
     return () => clearTimeout(timer);
-  }, [handleScroll]);
+  }, [handleScroll, weeklyData, currentWeek]);
 
   // Get the visible slice of data for the chart
   const visibleWeeklyData = visibleRange.end > 0 
@@ -106,6 +124,7 @@ export default function LagerbestandProjection({
               articleId={articleId}
               variant={variant}
               disableScroll
+              currentWeek={currentWeek}
             />
           </Box>
         </Box>

@@ -21,13 +21,23 @@ interface HistoryLogProps {
 }
 
 const fieldLabels: Record<CellChangeField, string> = {
+  forecastBaseline: 'Baseline',
+  forecastPromoKarton: 'Promo Karton',
+  forecastPromoDisplays: 'Promo Displays',
+  procurementForecast: 'Procurement',
+  // Legacy fields
   forecast: 'Forecast',
   orders: 'Orders',
   einkauf_menge: 'Einkauf',
   verkauf_menge: 'Verkauf',
 };
 
-const fieldColors: Record<CellChangeField, 'primary' | 'secondary' | 'success' | 'warning'> = {
+const fieldColors: Record<CellChangeField, 'primary' | 'secondary' | 'success' | 'warning' | 'info'> = {
+  forecastBaseline: 'primary',
+  forecastPromoKarton: 'secondary',
+  forecastPromoDisplays: 'secondary',
+  procurementForecast: 'info',
+  // Legacy fields
   forecast: 'primary',
   orders: 'secondary',
   einkauf_menge: 'success',

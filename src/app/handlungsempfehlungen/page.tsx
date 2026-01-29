@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box,
@@ -288,9 +288,8 @@ export default function HandlungsempfehlungenPage() {
             </TableHead>
             <TableBody>
               {displayedArticles.map((article) => (
-                <>
+                <Fragment key={article.id}>
                   <TableRow
-                    key={article.id}
                     hover
                     sx={{ 
                       cursor: 'pointer',
@@ -345,7 +344,7 @@ export default function HandlungsempfehlungenPage() {
                       {article.bestellenBis}
                     </TableCell>
                   </TableRow>
-                  <TableRow key={`${article.id}-expanded`}>
+                  <TableRow>
                     <TableCell colSpan={7} sx={{ py: 0, px: 0, overflow: 'hidden', maxWidth: 0 }}>
                       <Collapse in={expandedRows.has(article.id)} timeout="auto" unmountOnExit>
                         <Box sx={{ py: 2, px: 2, bgcolor: 'grey.50', overflow: 'hidden', width: '100%' }}>
@@ -356,7 +355,7 @@ export default function HandlungsempfehlungenPage() {
                       </Collapse>
                     </TableCell>
                   </TableRow>
-                </>
+                </Fragment>
               ))}
             </TableBody>
           </Table>

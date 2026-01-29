@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import ThemeProvider from "@/components/ThemeProvider";
 import { ChangesProvider } from "@/lib/ChangesContext";
+import { POLinkProvider } from "@/lib/POLinkContext";
 
 export const metadata: Metadata = {
-  title: "Range Planning - Handlungsempfehlungen",
-  description: "Sortiments- und Planungstool für Handlungsempfehlungen",
+  title: "Reichweitenplanungstool - Handlungsempfehlungen",
+  description: "Sortiments- und Planungstool für Reichweitenplanung",
 };
 
 export default function RootLayout({
@@ -22,7 +23,9 @@ export default function RootLayout({
       </head>
       <body style={{ margin: 0 }}>
         <ThemeProvider>
-          <ChangesProvider>{children}</ChangesProvider>
+          <ChangesProvider>
+            <POLinkProvider>{children}</POLinkProvider>
+          </ChangesProvider>
         </ThemeProvider>
       </body>
     </html>

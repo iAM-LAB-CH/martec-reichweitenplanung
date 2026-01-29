@@ -52,15 +52,15 @@ export default function ArtikelDetailPage() {
 
   // Calculate OOS metrics from weekly data
   const oosMetrics = article.weeklyData
-    .filter((w) => w.lagerbestand === 0)
+    .filter((w) => w.lagerbestandEnde <= 0)
     .slice(0, 3)
     .map((w) => ({
       week: w.week,
       bestellfrist: article.artikelDetails.bestellfrist,
     }));
 
-  // If no OOS yet, show upcoming critical week
-  const upcomingOOS = article.weeklyData.find((w) => w.lagerDelta < 0);
+  // If no OOS yet, show upcoming critical week (using lagerbestandEnde < salesLatestForecast as proxy for critical)
+  const upcomingOOS = article.weeklyData.find((w) => w.lagerbestandEnde < 0);
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', overflow: 'hidden' }}>
@@ -181,6 +181,7 @@ export default function ArtikelDetailPage() {
               weeklyData={article.weeklyData}
               articleId={article.id}
               currentWeekIndex={12} // KW13 is index 12 (current week)
+              currentWeek={13} // Current calendar week
               variant="detail"
             />
           </Box>

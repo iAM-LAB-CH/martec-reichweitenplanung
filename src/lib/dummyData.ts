@@ -1,18 +1,132 @@
-import { Article, WeeklyData } from './types';
+import { 
+  Article, 
+  WeeklyData, 
+  SalesBudgetBreakdown, 
+  SalesForecastBreakdown, 
+  ProcurementBreakdown,
+  DailyProcurement 
+} from './types';
+import { calculateLagerbestandEnde, calculateProcurementPo } from './calculations';
+
+/**
+ * Generate breakdown for sales budget
+ * Baseline ~70-80%, Promo split between kartonware and displays
+ */
+function generateSalesBudgetBreakdown(total: number): SalesBudgetBreakdown {
+  const baselineRatio = 0.7 + Math.random() * 0.1;
+  const baseline = Math.round(total * baselineRatio);
+  const promo = total - baseline;
+  const kartonwareRatio = 0.6 + Math.random() * 0.2;
+  
+  return {
+    baseline,
+    promo: {
+      kartonware: Math.round(promo * kartonwareRatio),
+      displays: promo - Math.round(promo * kartonwareRatio),
+    },
+  };
+}
+
+/**
+ * Generate breakdown for sales forecast
+ * Similar structure to budget but with slight variations
+ */
+function generateSalesForecastBreakdown(total: number, budgetBreakdown?: SalesBudgetBreakdown): SalesForecastBreakdown {
+  // Base forecast on budget breakdown if available, with some variation
+  if (budgetBreakdown) {
+    const factor = 0.9 + Math.random() * 0.2; // 90-110% of budget
+    return {
+      baseline: Math.round(budgetBreakdown.baseline * factor),
+      promo: {
+        kartonware: Math.round(budgetBreakdown.promo.kartonware * factor),
+        displays: Math.round(budgetBreakdown.promo.displays * factor),
+      },
+    };
+  }
+  
+  // Fallback to generating fresh breakdown
+  const baselineRatio = 0.7 + Math.random() * 0.1;
+  const baseline = Math.round(total * baselineRatio);
+  const promo = total - baseline;
+  const kartonwareRatio = 0.6 + Math.random() * 0.2;
+  
+  return {
+    baseline,
+    promo: {
+      kartonware: Math.round(promo * kartonwareRatio),
+      displays: promo - Math.round(promo * kartonwareRatio),
+    },
+  };
+}
+
+/**
+ * Generate procurement breakdown
+ */
+function generateProcurementBreakdown(total: number, isPast: boolean, hasOrders: boolean): ProcurementBreakdown {
+  if (isPast) {
+    // Past weeks: all delivered
+    return {
+      forecast: 0,
+      ordered: 0,
+      delivered: total,
+    };
+  }
+  
+  if (hasOrders && total > 0) {
+    // Has actual POs
+    const orderedRatio = Math.random() > 0.5 ? 1 : 0.5;
+    return {
+      forecast: 0,
+      ordered: Math.round(total * orderedRatio),
+      delivered: Math.round(total * (1 - orderedRatio)),
+    };
+  }
+  
+  // Future without orders: use forecast
+  return {
+    forecast: total,
+    ordered: 0,
+    delivered: 0,
+  };
+}
+
+/**
+ * Generate daily procurement breakdown (Mo-Fr)
+ */
+function generateDailyProcurement(weekTotal: number): DailyProcurement {
+  // Distribute across weekdays with some variance
+  const weights = [0.2, 0.2, 0.3, 0.2, 0.1]; // More mid-week
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  
+  return {
+    mo: Math.round(weekTotal * (weights[0] / totalWeight)),
+    di: Math.round(weekTotal * (weights[1] / totalWeight)),
+    mi: Math.round(weekTotal * (weights[2] / totalWeight)),
+    do: Math.round(weekTotal * (weights[3] / totalWeight)),
+    fr: Math.round(weekTotal * (weights[4] / totalWeight)),
+  };
+}
 
 /**
  * Generate full year of weekly data (KW1-KW52) from base data
  * 
  * Formula relationships:
- * - lagerbestand[week] = lagerbestand[week-1] - forecast[week-1] + orders[week-1]
- * - lagerDelta[week] = lagerbestand[week] - forecast[week]
- * - budget = yearly benchmark set at year start (slightly higher than forecast)
- * 
- * This allows negative lagerbestand values (representing out-of-stock/backorder)
+ * - lagerbestandAnfang[week] = lagerbestandEnde[week-1]
+ * - salesLatestForecast = baseline + promo.kartonware + promo.displays
+ * - lagerbestandEnde[week] = lagerbestandAnfang - MAX(salesLatestForecast, salesOrderImSystem) + procurementPo
  */
-function generateFullYearWeeklyData(baseData: WeeklyData[]): WeeklyData[] {
+function generateFullYearWeeklyData(
+  baseData: { 
+    week: string; 
+    lagerbestand: number; 
+    forecast: number; 
+    orders: number; 
+    budget: number;
+  }[],
+  currentWeek: number = 13
+): WeeklyData[] {
   // Create a map of existing weeks for quick lookup
-  const existingWeeks = new Map<number, WeeklyData>();
+  const existingWeeks = new Map<number, typeof baseData[0]>();
   baseData.forEach((d) => {
     const weekNum = parseInt(d.week.replace('KW', ''));
     existingWeeks.set(weekNum, d);
@@ -37,86 +151,177 @@ function generateFullYearWeeklyData(baseData: WeeklyData[]): WeeklyData[] {
 
   // First pass: Set up all weeks with existing data or placeholders
   for (let week = 1; week <= 52; week++) {
+    const isPast = week < currentWeek;
+    const isCurrent = week === currentWeek;
+    
     if (existingWeeks.has(week)) {
       const data = existingWeeks.get(week)!;
-      // Add budget if not present (budget is ~10-20% higher than forecast as benchmark)
+      const salesBudget = data.budget || Math.round(data.forecast * 1.15);
+      const salesBudgetBreakdown = generateSalesBudgetBreakdown(salesBudget);
+      const salesForecastBreakdown = generateSalesForecastBreakdown(data.forecast, salesBudgetBreakdown);
+      const procurementBreakdown = generateProcurementBreakdown(data.orders, isPast, data.orders > 0);
+      
       result.push({
-        ...data,
-        budget: data.budget || Math.round(data.forecast * 1.15),
+        week: `KW${week}`,
+        lagerbestandAnfang: data.lagerbestand,
+        salesBudget,
+        salesBudgetBreakdown,
+        salesLatestForecast: data.forecast,
+        salesForecastBreakdown,
+        salesOrderImSystem: Math.round(data.forecast * 0.3), // ~30% of forecast as orders
+        salesActuals: isPast ? Math.round(data.forecast * (0.9 + Math.random() * 0.2)) : undefined,
+        procurementPo: data.orders,
+        procurementBreakdown,
+        procurementDaily: generateDailyProcurement(data.orders),
+        lagerbestandEnde: 0, // Will be calculated
       });
     } else {
       result.push({
         week: `KW${week}`,
-        lagerbestand: 0,
-        forecast: 0,
-        orders: 0,
-        lagerDelta: 0,
-        budget: 0,
+        lagerbestandAnfang: 0,
+        salesBudget: 0,
+        salesLatestForecast: 0,
+        salesOrderImSystem: 0,
+        salesActuals: isPast ? 0 : undefined,
+        procurementPo: 0,
+        lagerbestandEnde: 0,
       });
     }
   }
 
   // Second pass: Calculate values for weeks BEFORE existing data (backwards)
-  // We extrapolate backwards assuming stable state
   for (let week = firstExistingWeek - 1; week >= 1; week--) {
+    const isPast = week < currentWeek;
     const forecast = Math.round(avgForecast * 0.8);
-    const budget = Math.round(forecast * 1.15);
+    const salesBudget = Math.round(forecast * 1.15);
+    const salesBudgetBreakdown = generateSalesBudgetBreakdown(salesBudget);
+    const salesForecastBreakdown = generateSalesForecastBreakdown(forecast, salesBudgetBreakdown);
+    
     // Maintain a reasonable stock level before the critical period
     const lagerbestand = firstData.lagerbestand + (firstExistingWeek - week) * Math.round(avgForecast * 0.3);
     const orders = 0;
-    const lagerDelta = lagerbestand - forecast;
+    const procurementBreakdown = generateProcurementBreakdown(orders, isPast, false);
     
     result[week - 1] = {
       week: `KW${week}`,
-      lagerbestand: Math.round(lagerbestand),
-      forecast,
-      orders,
-      lagerDelta: Math.round(lagerDelta),
-      budget,
+      lagerbestandAnfang: Math.round(lagerbestand),
+      salesBudget,
+      salesBudgetBreakdown,
+      salesLatestForecast: forecast,
+      salesForecastBreakdown,
+      salesOrderImSystem: Math.round(forecast * 0.3),
+      salesActuals: isPast ? Math.round(forecast * (0.9 + Math.random() * 0.2)) : undefined,
+      procurementPo: orders,
+      procurementBreakdown,
+      procurementDaily: generateDailyProcurement(orders),
+      lagerbestandEnde: 0,
     };
   }
 
   // Third pass: Calculate values for weeks AFTER existing data (forwards)
-  // Use the formula: lagerbestand[week] = lagerbestand[week-1] - forecast[week-1] + orders[week-1]
   for (let week = lastExistingWeek + 1; week <= 52; week++) {
-    const prevWeekData = result[week - 2]; // Previous week is at index week - 2
-    
+    const isPast = week < currentWeek;
     const forecast = Math.round(avgForecast * 0.7);
-    const budget = Math.round(forecast * 1.15);
-    // No automatic orders - let stock naturally deplete
+    const salesBudget = Math.round(forecast * 1.15);
+    const salesBudgetBreakdown = generateSalesBudgetBreakdown(salesBudget);
+    const salesForecastBreakdown = generateSalesForecastBreakdown(forecast, salesBudgetBreakdown);
     const orders = 0;
-    
-    // Calculate lagerbestand using the formula
-    const lagerbestand = prevWeekData.lagerbestand - prevWeekData.forecast + prevWeekData.orders;
-    const lagerDelta = lagerbestand - forecast;
+    const procurementBreakdown = generateProcurementBreakdown(orders, isPast, false);
     
     result[week - 1] = {
       week: `KW${week}`,
-      lagerbestand: Math.round(lagerbestand),
-      forecast,
-      orders,
-      lagerDelta: Math.round(lagerDelta),
-      budget,
+      lagerbestandAnfang: 0, // Will be calculated in next pass
+      salesBudget,
+      salesBudgetBreakdown,
+      salesLatestForecast: forecast,
+      salesForecastBreakdown,
+      salesOrderImSystem: Math.round(forecast * 0.3),
+      salesActuals: isPast ? Math.round(forecast * (0.9 + Math.random() * 0.2)) : undefined,
+      procurementPo: orders,
+      procurementBreakdown,
+      procurementDaily: generateDailyProcurement(orders),
+      lagerbestandEnde: 0,
     };
+  }
+
+  // Fourth pass: Calculate lagerbestandEnde for all weeks (forward chain)
+  // Also add procurement when inventory would go negative
+  const minSafetyStock = 100; // Minimum stock level before procurement triggers
+  
+  for (let i = 0; i < result.length; i++) {
+    // For weeks after the first, set lagerbestandAnfang from previous week's Ende
+    if (i > 0) {
+      result[i].lagerbestandAnfang = result[i - 1].lagerbestandEnde;
+    }
+    
+    // Calculate what inventory would be without additional procurement
+    const consumption = Math.max(result[i].salesLatestForecast, result[i].salesOrderImSystem);
+    let projectedEnde = result[i].lagerbestandAnfang - consumption + result[i].procurementPo;
+    
+    // If projected inventory is too low or negative, add procurement
+    if (projectedEnde < minSafetyStock && result[i].procurementPo === 0) {
+      // Calculate how much procurement is needed to get back to a healthy level
+      const shortfall = minSafetyStock - projectedEnde;
+      const procurementNeeded = Math.ceil((shortfall + consumption * 2) / 1000) * 1000; // Round up to nearest 1000
+      
+      result[i].procurementPo = procurementNeeded;
+      result[i].procurementBreakdown = generateProcurementBreakdown(procurementNeeded, i < currentWeek - 1, true);
+      result[i].procurementDaily = generateDailyProcurement(procurementNeeded);
+      
+      projectedEnde = result[i].lagerbestandAnfang - consumption + result[i].procurementPo;
+    }
+    
+    // Calculate final lagerbestandEnde (ensure it doesn't go below 0)
+    result[i].lagerbestandEnde = Math.max(0, calculateLagerbestandEnde(
+      result[i].lagerbestandAnfang,
+      result[i].salesLatestForecast,
+      result[i].salesOrderImSystem,
+      result[i].procurementPo
+    ));
   }
 
   return result;
 }
 
-// Raw article data with limited weeks - including budget (yearly benchmark ~15% above forecast)
-// Data shows diverse scenarios: critical, planning needed, stable, and well-stocked articles
-const rawArticles: Article[] = [
-  // CRITICAL: Battery-Pack - Deep into negative, major spike in demand
+// Raw article data with limited weeks - using original structure for backward compatibility
+// Key principle: When inventory approaches 0, procurement (forecast/ordered/delivered) kicks in
+// to replenish stock - inventory should never go negative
+const rawArticles: {
+  id: string;
+  artikelNr: string;
+  bezeichnung: string;
+  status: 'kritisch' | 'planen' | 'beobachten';
+  oosIn: string;
+  lagerDelta: number;
+  bestellenBis: string;
+  bestellvorschlag: { einheiten: number; bestellfrist: string };
+  artikelDetails: {
+    mindestbestellmenge: number;
+    lieferzeit: string;
+    bestellfrist: string;
+    erschoepfungsprognose: string;
+    mindesthaltbarkeit: string;
+    einheitenProPalett: number;
+    lagerkostenProEinheit: number;
+  };
+  weeklyData: { week: string; lagerbestand: number; forecast: number; orders: number; lagerDelta: number; budget: number }[];
+  orders: {
+    einkauf: { poNummer: string; status: string; menge: number; lieferwoche: string; lieferdatum: string; lieferant: string }[];
+    verkauf: { poNummer: string; status: string; menge: number; lieferwoche: string; lieferdatum: string; lieferant: string }[];
+  };
+}[] = [
+  // CRITICAL: Battery-Pack - Gets very low, needs urgent procurement forecast
+  // Inventory drops to critical level (200), system proposes 8000 procurement to recover
   {
     id: '1',
     artikelNr: '1204912094',
     bezeichnung: 'Battery-Pack',
     status: 'kritisch',
     oosIn: 'KW17',
-    lagerDelta: -12000,
+    lagerDelta: 200,
     bestellenBis: 'KW13',
     bestellvorschlag: {
-      einheiten: 4000,
+      einheiten: 8000,
       bestellfrist: '23.05.2026',
     },
     artikelDetails: {
@@ -129,39 +334,39 @@ const rawArticles: Article[] = [
       lagerkostenProEinheit: 0.25,
     },
     weeklyData: [
-      { week: 'KW13', lagerbestand: 2000, forecast: 1000, orders: 7000, lagerDelta: 1000, budget: 1200 },
-      { week: 'KW14', lagerbestand: 8000, forecast: 6600, orders: 0, lagerDelta: 1400, budget: 7500 },
-      { week: 'KW15', lagerbestand: 1400, forecast: 1000, orders: 0, lagerDelta: 400, budget: 1200 },
-      { week: 'KW16', lagerbestand: 400, forecast: 600, orders: 0, lagerDelta: -200, budget: 700 },
-      { week: 'KW17', lagerbestand: -200, forecast: 12000, orders: 0, lagerDelta: -12200, budget: 14000 },
-      { week: 'KW18', lagerbestand: -12200, forecast: 1000, orders: 0, lagerDelta: -13200, budget: 1200 },
-      { week: 'KW19', lagerbestand: -13200, forecast: 1000, orders: 2000, lagerDelta: -14200, budget: 1200 },
-      { week: 'KW20', lagerbestand: -12200, forecast: 2000, orders: 0, lagerDelta: -14200, budget: 2300 },
-      { week: 'KW21', lagerbestand: -14200, forecast: 1000, orders: 0, lagerDelta: -15200, budget: 1200 },
+      // Inventory declining rapidly - big demand spike coming in KW17
+      { week: 'KW13', lagerbestand: 5000, forecast: 1000, orders: 0, lagerDelta: 4000, budget: 1200 },
+      { week: 'KW14', lagerbestand: 4000, forecast: 1200, orders: 0, lagerDelta: 2800, budget: 1400 },
+      { week: 'KW15', lagerbestand: 2800, forecast: 1100, orders: 0, lagerDelta: 1700, budget: 1300 },
+      { week: 'KW16', lagerbestand: 1700, forecast: 1500, orders: 0, lagerDelta: 200, budget: 1700 },
+      // KW17: Very low stock, procurement forecast proposed to prevent OOS
+      { week: 'KW17', lagerbestand: 200, forecast: 2000, orders: 8000, lagerDelta: -1800, budget: 2300 },
+      { week: 'KW18', lagerbestand: 6200, forecast: 1800, orders: 0, lagerDelta: 4400, budget: 2100 },
+      { week: 'KW19', lagerbestand: 4400, forecast: 1500, orders: 0, lagerDelta: 2900, budget: 1700 },
+      { week: 'KW20', lagerbestand: 2900, forecast: 1400, orders: 0, lagerDelta: 1500, budget: 1600 },
+      { week: 'KW21', lagerbestand: 1500, forecast: 1200, orders: 4000, lagerDelta: 300, budget: 1400 },
     ],
     orders: {
       einkauf: [
-        { poNummer: '1242543', status: 'In Lieferung', menge: 3300, lieferwoche: 'KW 32', lieferdatum: '21.06.2026', lieferant: 'Planzer' },
-        { poNummer: '34672342', status: 'In Bearbeitung', menge: 2500, lieferwoche: 'KW 30', lieferdatum: '15.06.2026', lieferant: 'Planzer' },
-        { poNummer: '234624323', status: 'Abgeschlossen', menge: 1750, lieferwoche: 'KW 29', lieferdatum: '10.06.2026', lieferant: 'Planzer' },
-        { poNummer: '345234523', status: 'Versendet', menge: 4100, lieferwoche: 'KW 31', lieferdatum: '18.06.2026', lieferant: 'Planzer' },
+        { poNummer: '1242543', status: 'Bestätigt', menge: 8000, lieferwoche: 'KW 17', lieferdatum: '21.04.2026', lieferant: 'Planzer' },
+        { poNummer: '34672342', status: 'Geplant', menge: 4000, lieferwoche: 'KW 21', lieferdatum: '19.05.2026', lieferant: 'Planzer' },
       ],
       verkauf: [
         { poNummer: 'SO-001234', status: 'Bestätigt', menge: 500, lieferwoche: 'KW 18', lieferdatum: '02.05.2026', lieferant: 'Kunde A' },
         { poNummer: 'SO-001235', status: 'Offen', menge: 1200, lieferwoche: 'KW 19', lieferdatum: '09.05.2026', lieferant: 'Kunde B' },
-        { poNummer: 'SO-001236', status: 'Bestätigt', menge: 800, lieferwoche: 'KW 20', lieferdatum: '16.05.2026', lieferant: 'Kunde C' },
       ],
     },
   },
-  // CRITICAL: Baumnussöl - Steady decline into negative
+  // CRITICAL: Baumnussöl - Declining, needs action soon
+  // Inventory gets close to zero in KW16, procurement forecast kicks in
   {
     id: '2',
     artikelNr: '235324523',
     bezeichnung: 'Baumnussöl',
     status: 'kritisch',
-    oosIn: 'KW15',
-    lagerDelta: -3000,
-    bestellenBis: 'KW12',
+    oosIn: 'KW16',
+    lagerDelta: 300,
+    bestellenBis: 'KW13',
     bestellvorschlag: {
       einheiten: 8000,
       bestellfrist: '20.05.2026',
@@ -177,35 +382,37 @@ const rawArticles: Article[] = [
     },
     weeklyData: [
       { week: 'KW13', lagerbestand: 8000, forecast: 2500, orders: 0, lagerDelta: 5500, budget: 2900 },
-      { week: 'KW14', lagerbestand: 5500, forecast: 2800, orders: 0, lagerDelta: 2700, budget: 3200 },
-      { week: 'KW15', lagerbestand: 2700, forecast: 3000, orders: 0, lagerDelta: -300, budget: 3500 },
-      { week: 'KW16', lagerbestand: -300, forecast: 3200, orders: 0, lagerDelta: -3500, budget: 3700 },
-      { week: 'KW17', lagerbestand: -3500, forecast: 3000, orders: 0, lagerDelta: -6500, budget: 3500 },
-      { week: 'KW18', lagerbestand: -6500, forecast: 2800, orders: 8000, lagerDelta: -9300, budget: 3200 },
-      { week: 'KW19', lagerbestand: -1300, forecast: 2500, orders: 0, lagerDelta: -3800, budget: 2900 },
-      { week: 'KW20', lagerbestand: -3800, forecast: 2200, orders: 0, lagerDelta: -6000, budget: 2500 },
-      { week: 'KW21', lagerbestand: -6000, forecast: 2000, orders: 0, lagerDelta: -8000, budget: 2300 },
+      { week: 'KW14', lagerbestand: 5500, forecast: 2700, orders: 0, lagerDelta: 2800, budget: 3100 },
+      { week: 'KW15', lagerbestand: 2800, forecast: 2500, orders: 0, lagerDelta: 300, budget: 2900 },
+      // KW16: Low stock - procurement forecast kicks in
+      { week: 'KW16', lagerbestand: 300, forecast: 2600, orders: 8000, lagerDelta: -2300, budget: 3000 },
+      { week: 'KW17', lagerbestand: 5700, forecast: 2400, orders: 0, lagerDelta: 3300, budget: 2800 },
+      { week: 'KW18', lagerbestand: 3300, forecast: 2500, orders: 0, lagerDelta: 800, budget: 2900 },
+      { week: 'KW19', lagerbestand: 800, forecast: 2300, orders: 6000, lagerDelta: -1500, budget: 2700 },
+      { week: 'KW20', lagerbestand: 4500, forecast: 2200, orders: 0, lagerDelta: 2300, budget: 2500 },
+      { week: 'KW21', lagerbestand: 2300, forecast: 2000, orders: 0, lagerDelta: 300, budget: 2300 },
     ],
     orders: {
       einkauf: [
-        { poNummer: '8834521', status: 'In Bearbeitung', menge: 8000, lieferwoche: 'KW 18', lieferdatum: '01.05.2026', lieferant: 'Ölwerk GmbH' },
+        { poNummer: '8834521', status: 'Bestätigt', menge: 8000, lieferwoche: 'KW 16', lieferdatum: '15.04.2026', lieferant: 'Ölwerk GmbH' },
+        { poNummer: '8834522', status: 'Geplant', menge: 6000, lieferwoche: 'KW 19', lieferdatum: '06.05.2026', lieferant: 'Ölwerk GmbH' },
       ],
       verkauf: [
         { poNummer: 'SO-002341', status: 'Bestätigt', menge: 2000, lieferwoche: 'KW 16', lieferdatum: '18.04.2026', lieferant: 'Großhandel X' },
       ],
     },
   },
-  // PLANNING: Sonnencreme - Seasonal product, gets tight but recovers with order
+  // PLANNING: Sonnencreme - Seasonal product, stock getting low but PO on the way
   {
     id: '3',
     artikelNr: '1024501925',
     bezeichnung: 'Sonnencreme',
     status: 'planen',
-    oosIn: 'KW19',
-    lagerDelta: -500,
-    bestellenBis: 'KW17',
+    oosIn: 'KW18',
+    lagerDelta: 500,
+    bestellenBis: 'KW15',
     bestellvorschlag: {
-      einheiten: 3000,
+      einheiten: 5000,
       bestellfrist: '10.06.2026',
     },
     artikelDetails: {
@@ -221,33 +428,35 @@ const rawArticles: Article[] = [
       { week: 'KW13', lagerbestand: 4500, forecast: 800, orders: 0, lagerDelta: 3700, budget: 900 },
       { week: 'KW14', lagerbestand: 3700, forecast: 1000, orders: 0, lagerDelta: 2700, budget: 1200 },
       { week: 'KW15', lagerbestand: 2700, forecast: 1200, orders: 0, lagerDelta: 1500, budget: 1400 },
-      { week: 'KW16', lagerbestand: 1500, forecast: 1500, orders: 0, lagerDelta: 0, budget: 1700 },
-      { week: 'KW17', lagerbestand: 0, forecast: 1800, orders: 0, lagerDelta: -1800, budget: 2100 },
-      { week: 'KW18', lagerbestand: -1800, forecast: 2000, orders: 0, lagerDelta: -3800, budget: 2300 },
-      { week: 'KW19', lagerbestand: -3800, forecast: 2200, orders: 5000, lagerDelta: -6000, budget: 2500 },
-      { week: 'KW20', lagerbestand: -800, forecast: 2000, orders: 0, lagerDelta: -2800, budget: 2300 },
-      { week: 'KW21', lagerbestand: -2800, forecast: 1800, orders: 0, lagerDelta: -4600, budget: 2100 },
+      { week: 'KW16', lagerbestand: 1500, forecast: 1400, orders: 0, lagerDelta: 100, budget: 1600 },
+      // KW17: Getting very low, PO arriving just in time
+      { week: 'KW17', lagerbestand: 100, forecast: 1600, orders: 5000, lagerDelta: -1500, budget: 1800 },
+      { week: 'KW18', lagerbestand: 3500, forecast: 1800, orders: 0, lagerDelta: 1700, budget: 2100 },
+      { week: 'KW19', lagerbestand: 1700, forecast: 1600, orders: 0, lagerDelta: 100, budget: 1800 },
+      { week: 'KW20', lagerbestand: 100, forecast: 1500, orders: 5000, lagerDelta: -1400, budget: 1700 },
+      { week: 'KW21', lagerbestand: 3600, forecast: 1400, orders: 0, lagerDelta: 2200, budget: 1600 },
     ],
     orders: {
       einkauf: [
-        { poNummer: '7712345', status: 'Geplant', menge: 5000, lieferwoche: 'KW 19', lieferdatum: '15.05.2026', lieferant: 'Cosmetics AG' },
+        { poNummer: '7712345', status: 'Bestätigt', menge: 5000, lieferwoche: 'KW 17', lieferdatum: '22.04.2026', lieferant: 'Cosmetics AG' },
+        { poNummer: '7712346', status: 'Geplant', menge: 5000, lieferwoche: 'KW 20', lieferdatum: '13.05.2026', lieferant: 'Cosmetics AG' },
       ],
       verkauf: [
         { poNummer: 'SO-003456', status: 'Offen', menge: 800, lieferwoche: 'KW 18', lieferdatum: '01.05.2026', lieferant: 'Drogerie M' },
       ],
     },
   },
-  // PLANNING: Duschgel - Fluctuates around zero, manageable
+  // PLANNING: Duschgel - Tight margins, regular replenishment needed
   {
     id: '4',
     artikelNr: '132523523',
     bezeichnung: 'Duschgel',
     status: 'planen',
-    oosIn: 'KW18',
-    lagerDelta: -200,
-    bestellenBis: 'KW16',
+    oosIn: 'KW17',
+    lagerDelta: 400,
+    bestellenBis: 'KW14',
     bestellvorschlag: {
-      einheiten: 2000,
+      einheiten: 3000,
       bestellfrist: '15.06.2026',
     },
     artikelDetails: {
@@ -262,25 +471,26 @@ const rawArticles: Article[] = [
     weeklyData: [
       { week: 'KW13', lagerbestand: 3000, forecast: 1200, orders: 0, lagerDelta: 1800, budget: 1400 },
       { week: 'KW14', lagerbestand: 1800, forecast: 1300, orders: 0, lagerDelta: 500, budget: 1500 },
-      { week: 'KW15', lagerbestand: 500, forecast: 1400, orders: 0, lagerDelta: -900, budget: 1600 },
-      { week: 'KW16', lagerbestand: -900, forecast: 1300, orders: 2000, lagerDelta: -2200, budget: 1500 },
-      { week: 'KW17', lagerbestand: -200, forecast: 1200, orders: 0, lagerDelta: -1400, budget: 1400 },
-      { week: 'KW18', lagerbestand: -1400, forecast: 1100, orders: 2000, lagerDelta: -2500, budget: 1300 },
-      { week: 'KW19', lagerbestand: -500, forecast: 1000, orders: 0, lagerDelta: -1500, budget: 1200 },
-      { week: 'KW20', lagerbestand: -1500, forecast: 1000, orders: 0, lagerDelta: -2500, budget: 1200 },
-      { week: 'KW21', lagerbestand: -2500, forecast: 900, orders: 0, lagerDelta: -3400, budget: 1000 },
+      { week: 'KW15', lagerbestand: 500, forecast: 1200, orders: 3000, lagerDelta: -700, budget: 1400 },
+      { week: 'KW16', lagerbestand: 2300, forecast: 1100, orders: 0, lagerDelta: 1200, budget: 1300 },
+      { week: 'KW17', lagerbestand: 1200, forecast: 1200, orders: 0, lagerDelta: 0, budget: 1400 },
+      { week: 'KW18', lagerbestand: 0, forecast: 1100, orders: 3000, lagerDelta: -1100, budget: 1300 },
+      { week: 'KW19', lagerbestand: 1900, forecast: 1000, orders: 0, lagerDelta: 900, budget: 1200 },
+      { week: 'KW20', lagerbestand: 900, forecast: 1000, orders: 0, lagerDelta: -100, budget: 1200 },
+      { week: 'KW21', lagerbestand: -100, forecast: 900, orders: 3000, lagerDelta: -1000, budget: 1000 },
     ],
     orders: {
       einkauf: [
-        { poNummer: '4412345', status: 'Geplant', menge: 2000, lieferwoche: 'KW 16', lieferdatum: '20.04.2026', lieferant: 'CleanCo' },
-        { poNummer: '4412346', status: 'Geplant', menge: 2000, lieferwoche: 'KW 18', lieferdatum: '04.05.2026', lieferant: 'CleanCo' },
+        { poNummer: '4412345', status: 'Bestätigt', menge: 3000, lieferwoche: 'KW 15', lieferdatum: '08.04.2026', lieferant: 'CleanCo' },
+        { poNummer: '4412346', status: 'Bestätigt', menge: 3000, lieferwoche: 'KW 18', lieferdatum: '29.04.2026', lieferant: 'CleanCo' },
+        { poNummer: '4412347', status: 'Geplant', menge: 3000, lieferwoche: 'KW 21', lieferdatum: '20.05.2026', lieferant: 'CleanCo' },
       ],
       verkauf: [
         { poNummer: 'SO-004567', status: 'Bestätigt', menge: 400, lieferwoche: 'KW 17', lieferdatum: '24.04.2026', lieferant: 'Retail Store' },
       ],
     },
   },
-  // OBSERVE: Shampoo Premium - ZIG-ZAG PATTERN: Regular orders keep stock oscillating up-down-up-down
+  // OBSERVE: Shampoo Premium - Healthy sawtooth pattern, well managed
   {
     id: '5',
     artikelNr: '998877665',
@@ -290,7 +500,7 @@ const rawArticles: Article[] = [
     lagerDelta: 2500,
     bestellenBis: 'KW38',
     bestellvorschlag: {
-      einheiten: 1500,
+      einheiten: 2500,
       bestellfrist: '20.06.2026',
     },
     artikelDetails: {
@@ -323,7 +533,7 @@ const rawArticles: Article[] = [
       verkauf: [],
     },
   },
-  // OBSERVE: Handcreme Bio - ALWAYS POSITIVE with regular high orders keeping stock healthy
+  // OBSERVE: Handcreme Bio - Always well stocked
   {
     id: '6',
     artikelNr: '445566778',
@@ -365,7 +575,7 @@ const rawArticles: Article[] = [
       verkauf: [],
     },
   },
-  // OBSERVE: Bodylotion - ZIG-ZAG PATTERN: Stock goes up-down-up-down with bi-weekly orders
+  // OBSERVE: Bodylotion - Sawtooth pattern, replenishment when stock low
   {
     id: '7',
     artikelNr: '112233445',
@@ -375,7 +585,7 @@ const rawArticles: Article[] = [
     lagerDelta: 1500,
     bestellenBis: 'KW33',
     bestellvorschlag: {
-      einheiten: 1800,
+      einheiten: 2500,
       bestellfrist: '12.06.2026',
     },
     artikelDetails: {
@@ -407,7 +617,7 @@ const rawArticles: Article[] = [
       verkauf: [],
     },
   },
-  // OBSERVE: Zahnpasta Mint - ALWAYS POSITIVE: Excellent stock with large regular orders
+  // OBSERVE: Zahnpasta Mint - Well stocked, regular replenishment
   {
     id: '8',
     artikelNr: '667788990',
@@ -417,7 +627,7 @@ const rawArticles: Article[] = [
     lagerDelta: 8000,
     bestellenBis: 'KW50',
     bestellvorschlag: {
-      einheiten: 3000,
+      einheiten: 5000,
       bestellfrist: '14.06.2026',
     },
     artikelDetails: {
@@ -449,7 +659,7 @@ const rawArticles: Article[] = [
       verkauf: [],
     },
   },
-  // OBSERVE: Rasiergel - ZIG-ZAG PATTERN: Tight margins with frequent small orders
+  // OBSERVE: Rasiergel - Tight margins but well managed with frequent orders
   {
     id: '9',
     artikelNr: '334455667',
@@ -459,7 +669,7 @@ const rawArticles: Article[] = [
     lagerDelta: 400,
     bestellenBis: 'KW33',
     bestellvorschlag: {
-      einheiten: 1200,
+      einheiten: 1000,
       bestellfrist: '16.06.2026',
     },
     artikelDetails: {
@@ -492,7 +702,7 @@ const rawArticles: Article[] = [
       verkauf: [],
     },
   },
-  // OBSERVE: Deodorant Sport - ALWAYS POSITIVE: Comfortable stock with very regular replenishment
+  // OBSERVE: Deodorant Sport - Healthy levels with regular replenishment
   {
     id: '10',
     artikelNr: '889900112',
@@ -502,7 +712,7 @@ const rawArticles: Article[] = [
     lagerDelta: 3500,
     bestellenBis: 'KW50',
     bestellvorschlag: {
-      einheiten: 2200,
+      einheiten: 2500,
       bestellfrist: '18.06.2026',
     },
     artikelDetails: {
@@ -578,4 +788,3 @@ export function getPreviousArticleId(currentId: string): string | null {
   if (currentIndex <= 0) return null;
   return sorted[currentIndex - 1].id;
 }
-
