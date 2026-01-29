@@ -4,9 +4,56 @@ import {
   SalesBudgetBreakdown, 
   SalesForecastBreakdown, 
   ProcurementBreakdown,
-  DailyProcurement 
+  DailyProcurement,
+  POEntry 
 } from './types';
 import { calculateLagerbestandEnde, calculateProcurementPo } from './calculations';
+
+/**
+ * Generate deterministic mock POs for an article
+ * Uses artikelId as seed for consistent data across sessions
+ */
+export function generateMockPOs(artikelId: string): POEntry[] {
+  const baseNum = parseInt(artikelId) * 100;
+  
+  // Deterministic delivery weeks based on article ID
+  const deliveryWeeks = [
+    `KW${15 + (baseNum % 3)}`,
+    `KW${18 + (baseNum % 4)}`,
+    `KW${22 + (baseNum % 5)}`,
+  ];
+  
+  return [
+    {
+      poNummer: `PO-2026-${String(baseNum + 1).padStart(3, '0')}`,
+      menge: 1000 + (baseNum % 10) * 100,
+      liefertermin: deliveryWeeks[0],
+      artikelId,
+      status: 'unlinked',
+    },
+    {
+      poNummer: `PO-2026-${String(baseNum + 2).padStart(3, '0')}`,
+      menge: 750 + (baseNum % 8) * 50,
+      liefertermin: deliveryWeeks[1],
+      artikelId,
+      status: 'unlinked',
+    },
+    {
+      poNummer: `PO-2026-${String(baseNum + 3).padStart(3, '0')}`,
+      menge: 500 + (baseNum % 6) * 75,
+      liefertermin: deliveryWeeks[2],
+      artikelId,
+      status: 'unlinked',
+    },
+  ];
+}
+
+/**
+ * Get all unlinked POs for a specific article
+ */
+export function getUnlinkedPOsForArticle(artikelId: string): POEntry[] {
+  return generateMockPOs(artikelId);
+}
 
 /**
  * Generate breakdown for sales budget

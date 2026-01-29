@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Box,
@@ -12,13 +12,17 @@ import {
   Card,
   CardContent,
   Fab,
+  Badge,
+  Tooltip,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StatusChip from '@/components/StatusChip';
 import LagerbestandProjection from '@/components/LagerbestandProjection';
 import OrdersSection from '@/components/OrdersSection';
 import ArticleSidebar from '@/components/ArticleSidebar';
+import { usePOLink } from '@/lib/POLinkContext';
 import {
   getArticleById,
   getNextArticleId,
@@ -33,6 +37,16 @@ export default function ArtikelDetailPage() {
   const article = useMemo(() => getArticleById(articleId), [articleId]);
   const nextId = useMemo(() => getNextArticleId(articleId), [articleId]);
   const prevId = useMemo(() => getPreviousArticleId(articleId), [articleId]);
+
+  // PO Link context
+  const { setCurrentArticle, unlinkedCount } = usePOLink();
+
+  // Set current article in PO context when articleId changes
+  useEffect(() => {
+    if (articleId) {
+      setCurrentArticle(articleId);
+    }
+  }, [articleId, setCurrentArticle]);
 
   if (!article) {
     return (
@@ -112,9 +126,18 @@ export default function ArtikelDetailPage() {
                 </Typography>
               </Box>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                  {article.bezeichnung}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                    {article.bezeichnung}
+                  </Typography>
+                  {unlinkedCount > 0 && (
+                    <Tooltip title={`${unlinkedCount} PO${unlinkedCount > 1 ? 's' : ''} nicht verknüpft`} arrow>
+                      <Badge badgeContent={unlinkedCount} color="warning" sx={{ ml: 1 }}>
+                        <WarningAmberIcon color="warning" sx={{ fontSize: 20 }} />
+                      </Badge>
+                    </Tooltip>
+                  )}
+                </Box>
                 <Typography variant="body2" color="text.secondary">
                   {article.artikelNr}
                 </Typography>

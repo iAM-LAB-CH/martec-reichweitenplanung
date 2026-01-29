@@ -14,10 +14,13 @@ import {
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
+import LinkIcon from '@mui/icons-material/Link';
 import { WeeklyData, RowDefinition, WeekStatus, DailyProcurement } from '@/lib/types';
 import { getInventoryDisplayInfo, formatNumber } from '@/lib/calculations';
 import { getWeekStatus, parseWeekNumber, isWeekEditable } from '@/lib/timeUtils';
+import { usePOLink } from '@/lib/POLinkContext';
 import EditableCell from './EditableCell';
+import POLinkPopover from './POLinkPopover';
 
 // Weekday labels
 const WEEKDAYS = ['mo', 'di', 'mi', 'do', 'fr'] as const;
@@ -231,6 +234,27 @@ export default function ForecastTable({
 }: ForecastTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+  
+  // PO Linking state
+  const [poLinkAnchor, setPOLinkAnchor] = useState<HTMLElement | null>(null);
+  const [poLinkWeek, setPOLinkWeek] = useState<string>('');
+  
+  // Get PO link context
+  const { unlinkedCount, getLinkedPO, getPOByNumber } = usePOLink();
+
+  // Handle opening PO link popover
+  const handleOpenPOLink = (event: React.MouseEvent<HTMLElement>, week: string) => {
+    if (unlinkedCount > 0) {
+      setPOLinkAnchor(event.currentTarget);
+      setPOLinkWeek(week);
+    }
+  };
+
+  // Handle closing PO link popover
+  const handleClosePOLink = () => {
+    setPOLinkAnchor(null);
+    setPOLinkWeek('');
+  };
 
   // Toggle row expansion
   const toggleRowExpansion = (rowId: string) => {
@@ -668,7 +692,15 @@ export default function ForecastTable({
                 );
               }
 
-              // Render editable cell
+              // Check if this is a procurement forecast cell that can be linked
+              const isProcurementForecast = rowDef.id === 'procurementForecast';
+              const linkedPONumber = getLinkedPO(data.week);
+              const canLinkPO = isProcurementForecast && unlinkedCount > 0 && !linkedPONumber;
+              
+              // Check if this is a PO row that should show tooltip
+              const isPORow = rowDef.id === 'poOrdered' || rowDef.id === 'poDelivered';
+
+              // Render editable cell (with PO linking for procurement forecast)
               if (editable && articleId) {
                 return (
                   <>
@@ -678,17 +710,51 @@ export default function ForecastTable({
                       sx={{ 
                         padding: cellPadding,
                         backgroundColor: bgColor,
+                        cursor: canLinkPO ? 'pointer' : 'default',
+                        '&:hover': canLinkPO ? { bgcolor: 'action.hover' } : {},
+                        position: 'relative',
                       }}
+                      onClick={canLinkPO ? (e) => handleOpenPOLink(e, data.week) : undefined}
                     >
-                      <EditableCell
-                        articleId={articleId}
-                        field={getChangeFieldType(rowDef.id)}
-                        weekOrOrderId={data.week}
-                        originalValue={value ?? 0}
-                        formatValue={formatNumber}
-                        fieldLabel={rowDef.label}
-                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                        {linkedPONumber && (
+                          <Tooltip title={`Verknüpft mit ${linkedPONumber}`} arrow>
+                            <LinkIcon sx={{ fontSize: 14, color: 'success.main' }} />
+                          </Tooltip>
+                        )}
+                        <EditableCell
+                          articleId={articleId}
+                          field={getChangeFieldType(rowDef.id)}
+                          weekOrOrderId={data.week}
+                          originalValue={value ?? 0}
+                          formatValue={formatNumber}
+                          fieldLabel={rowDef.label}
+                        />
+                      </Box>
                     </TableCell>
+                    {isWeekExpanded && renderDailyCells(rowDef, data, weekStatus)}
+                  </>
+                );
+              }
+
+              // Render PO row with tooltip
+              if (isPORow && linkedPONumber && value && value > 0) {
+                return (
+                  <>
+                    <Tooltip title={`PO: ${linkedPONumber}`} arrow placement="top">
+                      <TableCell 
+                        key={data.week} 
+                        align="right" 
+                        sx={{ 
+                          padding: cellPadding,
+                          backgroundColor: bgColor,
+                          opacity: weekStatus === 'past' ? 0.8 : 1,
+                          fontSize: '14px',
+                        }}
+                      >
+                        {formatCellValue(rowDef, value)}
+                      </TableCell>
+                    </Tooltip>
                     {isWeekExpanded && renderDailyCells(rowDef, data, weekStatus)}
                   </>
                 );
@@ -721,7 +787,20 @@ export default function ForecastTable({
 
   // When disableScroll is true, return table without scroll wrapper
   if (disableScroll) {
-    return tableContent;
+    return (
+      <>
+        {tableContent}
+        {articleId && (
+          <POLinkPopover
+            open={Boolean(poLinkAnchor)}
+            anchorEl={poLinkAnchor}
+            onClose={handleClosePOLink}
+            week={poLinkWeek}
+            articleId={articleId}
+          />
+        )}
+      </>
+    );
   }
 
   return (
@@ -729,6 +808,17 @@ export default function ForecastTable({
       <Box sx={{ overflowX: 'auto', maxWidth: '100%' }}>
         {tableContent}
       </Box>
+      
+      {/* PO Link Popover */}
+      {articleId && (
+        <POLinkPopover
+          open={Boolean(poLinkAnchor)}
+          anchorEl={poLinkAnchor}
+          onClose={handleClosePOLink}
+          week={poLinkWeek}
+          articleId={articleId}
+        />
+      )}
     </Box>
   );
 }
