@@ -84,6 +84,11 @@ export function ChangesProvider({ children }: { children: ReactNode }) {
           return c.week === weekOrOrderId && !c.day;
         }
         
+        // PO Link field - match by week
+        if (field === 'poLink') {
+          return c.week === weekOrOrderId;
+        }
+        
         // Legacy fields
         if (field === 'forecast' || field === 'orders') {
           return c.week === weekOrOrderId;

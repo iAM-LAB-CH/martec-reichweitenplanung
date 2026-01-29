@@ -138,6 +138,43 @@ function generateProcurementBreakdown(total: number, isPast: boolean, hasOrders:
 }
 
 /**
+ * Generate procurement breakdown with explicit forecast value from PO data
+ * This ensures the forecast field is populated for weeks where POs need to be linked
+ */
+function generateProcurementBreakdownWithForecast(
+  total: number, 
+  isPast: boolean, 
+  hasOrders: boolean,
+  poForecastAmount: number
+): ProcurementBreakdown {
+  if (isPast) {
+    // Past weeks: all delivered
+    return {
+      forecast: 0,
+      ordered: 0,
+      delivered: total,
+    };
+  }
+  
+  if (hasOrders && total > 0) {
+    // Has actual POs - but also keep forecast if PO forecast amount specified
+    const orderedRatio = Math.random() > 0.5 ? 1 : 0.5;
+    return {
+      forecast: poForecastAmount, // Keep forecast from PO data
+      ordered: Math.round(total * orderedRatio),
+      delivered: Math.round(total * (1 - orderedRatio)),
+    };
+  }
+  
+  // Future without orders: use forecast from PO data or total
+  return {
+    forecast: poForecastAmount > 0 ? poForecastAmount : total,
+    ordered: 0,
+    delivered: 0,
+  };
+}
+
+/**
  * Generate daily procurement breakdown (Mo-Fr)
  */
 function generateDailyProcurement(weekTotal: number): DailyProcurement {
@@ -152,6 +189,22 @@ function generateDailyProcurement(weekTotal: number): DailyProcurement {
     do: Math.round(weekTotal * (weights[3] / totalWeight)),
     fr: Math.round(weekTotal * (weights[4] / totalWeight)),
   };
+}
+
+/**
+ * Get PO forecast weeks and amounts for an article
+ * These are weeks where we expect a procurement forecast that can be linked to a PO
+ */
+function getPOForecastWeeks(artikelId: string): Map<string, number> {
+  const pos = generateMockPOs(artikelId);
+  const poWeeks = new Map<string, number>();
+  
+  for (const po of pos) {
+    // Use the delivery week from PO
+    poWeeks.set(po.liefertermin, po.menge);
+  }
+  
+  return poWeeks;
 }
 
 /**
@@ -170,8 +223,11 @@ function generateFullYearWeeklyData(
     orders: number; 
     budget: number;
   }[],
-  currentWeek: number = 13
+  currentWeek: number = 13,
+  artikelId?: string
 ): WeeklyData[] {
+  // Get PO forecast weeks for this article (if ID provided)
+  const poForecastWeeks = artikelId ? getPOForecastWeeks(artikelId) : new Map<string, number>();
   // Create a map of existing weeks for quick lookup
   const existingWeeks = new Map<number, typeof baseData[0]>();
   baseData.forEach((d) => {
@@ -206,10 +262,21 @@ function generateFullYearWeeklyData(
       const salesBudget = data.budget || Math.round(data.forecast * 1.15);
       const salesBudgetBreakdown = generateSalesBudgetBreakdown(salesBudget);
       const salesForecastBreakdown = generateSalesForecastBreakdown(data.forecast, salesBudgetBreakdown);
-      const procurementBreakdown = generateProcurementBreakdown(data.orders, isPast, data.orders > 0);
+      
+      // Check if this week has a PO forecast amount
+      const weekKey = `KW${week}`;
+      const poForecastAmount = poForecastWeeks.get(weekKey) || 0;
+      
+      // Generate procurement breakdown with forecast from PO data
+      const procurementBreakdown = generateProcurementBreakdownWithForecast(
+        data.orders, 
+        isPast, 
+        data.orders > 0,
+        poForecastAmount
+      );
       
       result.push({
-        week: `KW${week}`,
+        week: weekKey,
         lagerbestandAnfang: data.lagerbestand,
         salesBudget,
         salesBudgetBreakdown,
@@ -223,14 +290,23 @@ function generateFullYearWeeklyData(
         lagerbestandEnde: 0, // Will be calculated
       });
     } else {
+      const weekKey = `KW${week}`;
+      const poForecastAmount = poForecastWeeks.get(weekKey) || 0;
+      
       result.push({
-        week: `KW${week}`,
+        week: weekKey,
         lagerbestandAnfang: 0,
         salesBudget: 0,
         salesLatestForecast: 0,
         salesOrderImSystem: 0,
         salesActuals: isPast ? 0 : undefined,
         procurementPo: 0,
+        procurementBreakdown: poForecastAmount > 0 ? {
+          forecast: poForecastAmount,
+          ordered: 0,
+          delivered: 0,
+        } : undefined,
+        procurementDaily: poForecastAmount > 0 ? generateDailyProcurement(poForecastAmount) : undefined,
         lagerbestandEnde: 0,
       });
     }
@@ -247,10 +323,14 @@ function generateFullYearWeeklyData(
     // Maintain a reasonable stock level before the critical period
     const lagerbestand = firstData.lagerbestand + (firstExistingWeek - week) * Math.round(avgForecast * 0.3);
     const orders = 0;
-    const procurementBreakdown = generateProcurementBreakdown(orders, isPast, false);
+    
+    // Check if this week has a PO forecast amount
+    const weekKey = `KW${week}`;
+    const poForecastAmount = poForecastWeeks.get(weekKey) || 0;
+    const procurementBreakdown = generateProcurementBreakdownWithForecast(orders, isPast, false, poForecastAmount);
     
     result[week - 1] = {
-      week: `KW${week}`,
+      week: weekKey,
       lagerbestandAnfang: Math.round(lagerbestand),
       salesBudget,
       salesBudgetBreakdown,
@@ -260,7 +340,7 @@ function generateFullYearWeeklyData(
       salesActuals: isPast ? Math.round(forecast * (0.9 + Math.random() * 0.2)) : undefined,
       procurementPo: orders,
       procurementBreakdown,
-      procurementDaily: generateDailyProcurement(orders),
+      procurementDaily: generateDailyProcurement(poForecastAmount > 0 ? poForecastAmount : orders),
       lagerbestandEnde: 0,
     };
   }
@@ -273,10 +353,14 @@ function generateFullYearWeeklyData(
     const salesBudgetBreakdown = generateSalesBudgetBreakdown(salesBudget);
     const salesForecastBreakdown = generateSalesForecastBreakdown(forecast, salesBudgetBreakdown);
     const orders = 0;
-    const procurementBreakdown = generateProcurementBreakdown(orders, isPast, false);
+    
+    // Check if this week has a PO forecast amount
+    const weekKey = `KW${week}`;
+    const poForecastAmount = poForecastWeeks.get(weekKey) || 0;
+    const procurementBreakdown = generateProcurementBreakdownWithForecast(orders, isPast, false, poForecastAmount);
     
     result[week - 1] = {
-      week: `KW${week}`,
+      week: weekKey,
       lagerbestandAnfang: 0, // Will be calculated in next pass
       salesBudget,
       salesBudgetBreakdown,
@@ -286,7 +370,7 @@ function generateFullYearWeeklyData(
       salesActuals: isPast ? Math.round(forecast * (0.9 + Math.random() * 0.2)) : undefined,
       procurementPo: orders,
       procurementBreakdown,
-      procurementDaily: generateDailyProcurement(orders),
+      procurementDaily: generateDailyProcurement(poForecastAmount > 0 ? poForecastAmount : orders),
       lagerbestandEnde: 0,
     };
   }
@@ -312,8 +396,18 @@ function generateFullYearWeeklyData(
       const procurementNeeded = Math.ceil((shortfall + consumption * 2) / 1000) * 1000; // Round up to nearest 1000
       
       result[i].procurementPo = procurementNeeded;
-      result[i].procurementBreakdown = generateProcurementBreakdown(procurementNeeded, i < currentWeek - 1, true);
-      result[i].procurementDaily = generateDailyProcurement(procurementNeeded);
+      
+      // Preserve existing forecast from PO data if present
+      const existingForecast = result[i].procurementBreakdown?.forecast || 0;
+      const poForecastAmount = poForecastWeeks.get(result[i].week) || existingForecast;
+      
+      result[i].procurementBreakdown = generateProcurementBreakdownWithForecast(
+        procurementNeeded, 
+        i < currentWeek - 1, 
+        true,
+        poForecastAmount
+      );
+      result[i].procurementDaily = generateDailyProcurement(poForecastAmount > 0 ? poForecastAmount : procurementNeeded);
       
       projectedEnde = result[i].lagerbestandAnfang - consumption + result[i].procurementPo;
     }
@@ -796,7 +890,7 @@ const rawArticles: {
 // Generate full year data for all articles
 export const articles: Article[] = rawArticles.map((article) => ({
   ...article,
-  weeklyData: generateFullYearWeeklyData(article.weeklyData),
+  weeklyData: generateFullYearWeeklyData(article.weeklyData, 13, article.id),
 }));
 
 // Helper to get articles sorted by criticality (kritisch first, then planen, then beobachten)

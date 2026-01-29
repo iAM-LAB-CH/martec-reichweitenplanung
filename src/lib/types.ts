@@ -87,6 +87,7 @@ export type CellChangeField =
   | 'forecastPromoKarton' 
   | 'forecastPromoDisplays' 
   | 'procurementForecast'
+  | 'poLink' // For PO linking actions
   | 'einkauf_menge' 
   | 'verkauf_menge'
   // Legacy fields for backwards compatibility
@@ -100,6 +101,7 @@ export interface CellChange {
   week?: string; // for weekly changes
   orderId?: string; // for einkauf/verkauf changes
   day?: string; // for daily breakdown changes (mo, di, mi, do, fr)
+  poNummer?: string; // for PO link actions
   originalValue: number;
   newValue: number;
   comment: string;

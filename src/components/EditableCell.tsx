@@ -3,8 +3,11 @@
 import { useState, useRef } from 'react';
 import { Box, Typography, Tooltip } from '@mui/material';
 import CommentIcon from '@mui/icons-material/Comment';
+import LinkIcon from '@mui/icons-material/Link';
 import CommentPopover from './CommentPopover';
+import ProcurementCellPopover from './ProcurementCellPopover';
 import { useChanges } from '@/lib/ChangesContext';
+import { usePOLink } from '@/lib/POLinkContext';
 import { CellChangeField } from '@/lib/types';
 
 interface EditableCellProps {
@@ -30,10 +33,15 @@ export default function EditableCell({
   const cellRef = useRef<HTMLDivElement>(null);
   
   const { getChangeForCell, addChange, removeChange } = useChanges();
+  const { linkPO, getLinkedPO } = usePOLink();
   
   const change = getChangeForCell(articleId, field, weekOrOrderId, day);
   const hasChange = !!change;
   const currentValue = change ? change.newValue : originalValue;
+  
+  // Check if this is a procurement forecast cell (supports PO linking)
+  const isProcurementForecast = field === 'procurementForecast' && !day;
+  const linkedPO = isProcurementForecast ? getLinkedPO(weekOrOrderId) : undefined;
 
   const handleClick = () => {
     setPopoverOpen(true);
@@ -81,6 +89,34 @@ export default function EditableCell({
     setPopoverOpen(false);
   };
 
+  const handleLinkPO = (poNummer: string, poMenge: number) => {
+    // Link the PO in the PO context
+    linkPO(weekOrOrderId, poNummer);
+    
+    // Also log the link as a change for the activity log
+    addChange({
+      articleId,
+      field: 'poLink',
+      week: weekOrOrderId,
+      poNummer,
+      originalValue: currentValue,
+      newValue: poMenge,
+      comment: `PO ${poNummer} verknüpft`,
+    });
+    
+    // Update the procurement forecast value to match the PO amount
+    addChange({
+      articleId,
+      field: 'procurementForecast',
+      week: weekOrOrderId,
+      originalValue,
+      newValue: poMenge,
+      comment: `Wert aus PO ${poNummer} übernommen`,
+    });
+    
+    setPopoverOpen(false);
+  };
+
   return (
     <>
       <Box
@@ -104,6 +140,18 @@ export default function EditableCell({
           },
         }}
       >
+        {linkedPO && (
+          <Tooltip title={`Verknüpft mit ${linkedPO}`} arrow placement="top">
+            <LinkIcon
+              sx={{
+                fontSize: 14,
+                color: 'success.main',
+                mr: 0.25,
+              }}
+            />
+          </Tooltip>
+        )}
+        
         <Typography
           variant="body2"
           sx={{
@@ -127,17 +175,34 @@ export default function EditableCell({
         )}
       </Box>
 
-      <CommentPopover
-        open={popoverOpen}
-        anchorEl={cellRef.current}
-        onClose={handleClose}
-        currentValue={currentValue}
-        originalValue={originalValue}
-        existingComment={change?.comment}
-        onAccept={handleAccept}
-        onReject={handleReject}
-        fieldLabel={fieldLabel}
-      />
+      {isProcurementForecast ? (
+        <ProcurementCellPopover
+          open={popoverOpen}
+          anchorEl={cellRef.current}
+          onClose={handleClose}
+          week={weekOrOrderId}
+          articleId={articleId}
+          currentValue={currentValue}
+          originalValue={originalValue}
+          existingComment={change?.comment}
+          onAccept={handleAccept}
+          onReject={handleReject}
+          onLinkPO={handleLinkPO}
+          fieldLabel={fieldLabel}
+        />
+      ) : (
+        <CommentPopover
+          open={popoverOpen}
+          anchorEl={cellRef.current}
+          onClose={handleClose}
+          currentValue={currentValue}
+          originalValue={originalValue}
+          existingComment={change?.comment}
+          onAccept={handleAccept}
+          onReject={handleReject}
+          fieldLabel={fieldLabel}
+        />
+      )}
     </>
   );
 }

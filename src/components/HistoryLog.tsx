@@ -25,6 +25,7 @@ const fieldLabels: Record<CellChangeField, string> = {
   forecastPromoKarton: 'Promo Karton',
   forecastPromoDisplays: 'Promo Displays',
   procurementForecast: 'Procurement',
+  poLink: 'PO Verknüpft',
   // Legacy fields
   forecast: 'Forecast',
   orders: 'Orders',
@@ -37,6 +38,7 @@ const fieldColors: Record<CellChangeField, 'primary' | 'secondary' | 'success' |
   forecastPromoKarton: 'secondary',
   forecastPromoDisplays: 'secondary',
   procurementForecast: 'info',
+  poLink: 'success',
   // Legacy fields
   forecast: 'primary',
   orders: 'secondary',
@@ -86,6 +88,7 @@ export default function HistoryLog({ articleId }: HistoryLogProps) {
       {changes.map((change) => {
         const isExpanded = expandedItems.has(change.id);
         const identifier = change.week || change.orderId || '';
+        const isPOLink = change.field === 'poLink';
         
         return (
           <ListItem
@@ -121,15 +124,30 @@ export default function HistoryLog({ articleId }: HistoryLogProps) {
             </Box>
             
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-              <Typography variant="caption" color="text.secondary">
-                {change.originalValue.toLocaleString('de-CH')}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                →
-              </Typography>
-              <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                {change.newValue.toLocaleString('de-CH')}
-              </Typography>
+              {isPOLink ? (
+                // PO Link entry shows PO number and quantity
+                <>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>
+                    {change.poNummer}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    ({change.newValue.toLocaleString('de-CH')} Stück)
+                  </Typography>
+                </>
+              ) : (
+                // Regular entry shows value change
+                <>
+                  <Typography variant="caption" color="text.secondary">
+                    {change.originalValue.toLocaleString('de-CH')}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    →
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                    {change.newValue.toLocaleString('de-CH')}
+                  </Typography>
+                </>
+              )}
               <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
                 {formatTimestamp(change.timestamp)}
               </Typography>
@@ -140,14 +158,14 @@ export default function HistoryLog({ articleId }: HistoryLogProps) {
                 sx={{
                   mt: 1,
                   p: 1,
-                  bgcolor: 'grey.50',
+                  bgcolor: isPOLink ? 'success.50' : 'grey.50',
                   borderRadius: 1,
                   borderLeft: '3px solid',
-                  borderLeftColor: 'warning.main',
+                  borderLeftColor: isPOLink ? 'success.main' : 'warning.main',
                 }}
               >
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                  Kommentar:
+                  {isPOLink ? 'Details:' : 'Kommentar:'}
                 </Typography>
                 <Typography variant="body2">
                   {change.comment || 'Kein Kommentar'}
