@@ -20,7 +20,6 @@ import {
   TableHead,
   TableRow,
   Collapse,
-  Paper,
   TableSortLabel,
   CircularProgress,
 } from '@mui/material';
@@ -162,220 +161,218 @@ export default function HandlungsempfehlungenPage() {
   const displayedArticles = sortedArticles.slice(0, displayedCount);
 
   return (
-    <Box sx={{ p: 4, bgcolor: 'background.default', minHeight: '100vh', overflow: 'hidden' }}>
-      <Paper sx={{ p: 0, borderRadius: 2, overflow: 'hidden' }}>
-        {/* Header */}
-        <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider' }}>
-          <Typography variant="h5" sx={{ fontWeight: 500, mb: 0.5 }}>
-            Handlungsempfehlungen
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Basierend auf der Dringlichkeit zur Handlung werden hier alle Artikel gelistet, welche in Gefahr eines unzureichenden Lagerbestands sind oder bald sein werden.
-          </Typography>
-        </Box>
+    <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', overflow: 'hidden' }}>
+      {/* Header */}
+      <Box sx={{ px: 3, py: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Typography variant="h5" sx={{ fontWeight: 500, mb: 0.5 }}>
+          Handlungsempfehlungen
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Basierend auf der Dringlichkeit zur Handlung werden hier alle Artikel gelistet, welche in Gefahr eines unzureichenden Lagerbestands sind oder bald sein werden.
+        </Typography>
+      </Box>
 
-        {/* Toolbar */}
+      {/* Toolbar */}
+      <Box
+        sx={{
+          px: 3,
+          py: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <TextField
+          placeholder="Artikel suchen..."
+          size="small"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon color="action" />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ flex: 1, maxWidth: 400 }}
+        />
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Status</InputLabel>
+          <Select
+            value={statusFilter}
+            label="Status"
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <MenuItem value="">Alle</MenuItem>
+            <MenuItem value="kritisch">Kritisch</MenuItem>
+            <MenuItem value="planen">Planen</MenuItem>
+            <MenuItem value="beobachten">Beobachten</MenuItem>
+          </Select>
+        </FormControl>
+        <IconButton>
+          <FilterListIcon />
+        </IconButton>
+        <Button variant="outlined" startIcon={<DownloadIcon />}>
+          Download
+        </Button>
+        <IconButton>
+          <SettingsIcon />
+        </IconButton>
+      </Box>
+
+      {/* Table */}
+      <TableContainer sx={{ overflowX: 'auto', width: '100%' }}>
+        <Table sx={{ minWidth: 800, tableLayout: 'fixed' }}>
+          <TableHead>
+            <TableRow>
+              <TableCell width={50}></TableCell>
+              <TableCell sx={{ fontWeight: 500 }}>
+                <TableSortLabel
+                  active={sortColumn === 'artikelNr'}
+                  direction={sortColumn === 'artikelNr' ? sortDirection : 'asc'}
+                  onClick={() => handleSort('artikelNr')}
+                >
+                  Artikel Nr.
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 500 }}>
+                <TableSortLabel
+                  active={sortColumn === 'bezeichnung'}
+                  direction={sortColumn === 'bezeichnung' ? sortDirection : 'asc'}
+                  onClick={() => handleSort('bezeichnung')}
+                >
+                  Bezeichnung
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 500 }}>
+                <TableSortLabel
+                  active={sortColumn === 'status'}
+                  direction={sortColumn === 'status' ? sortDirection : 'asc'}
+                  onClick={() => handleSort('status')}
+                >
+                  Status
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 500 }}>
+                <TableSortLabel
+                  active={sortColumn === 'oosIn'}
+                  direction={sortColumn === 'oosIn' ? sortDirection : 'asc'}
+                  onClick={() => handleSort('oosIn')}
+                >
+                  OOS in
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 500 }}>
+                <TableSortLabel
+                  active={sortColumn === 'lagerDelta'}
+                  direction={sortColumn === 'lagerDelta' ? sortDirection : 'asc'}
+                  onClick={() => handleSort('lagerDelta')}
+                >
+                  Lager-Delta
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 500 }}>
+                <TableSortLabel
+                  active={sortColumn === 'bestellenBis'}
+                  direction={sortColumn === 'bestellenBis' ? sortDirection : 'asc'}
+                  onClick={() => handleSort('bestellenBis')}
+                >
+                  Bestellen bis
+                </TableSortLabel>
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {displayedArticles.map((article) => (
+              <Fragment key={article.id}>
+                <TableRow
+                  hover
+                  sx={{ 
+                    cursor: 'pointer',
+                    '& > td': { borderBottom: expandedRows.has(article.id) ? 0 : undefined },
+                  }}
+                >
+                  <TableCell>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleExpand(article.id);
+                      }}
+                    >
+                      {expandedRows.has(article.id) ? (
+                        <KeyboardArrowUpIcon />
+                      ) : (
+                        <KeyboardArrowDownIcon />
+                      )}
+                    </IconButton>
+                  </TableCell>
+                  <TableCell 
+                    onClick={() => handleRowClick(article)}
+                    sx={{ fontWeight: 500 }}
+                  >
+                    {article.artikelNr}
+                  </TableCell>
+                  <TableCell onClick={() => handleRowClick(article)}>
+                    {article.bezeichnung}
+                  </TableCell>
+                  <TableCell onClick={() => handleRowClick(article)}>
+                    <StatusChip status={article.status} />
+                  </TableCell>
+                  <TableCell onClick={() => handleRowClick(article)}>
+                    {article.oosIn}
+                  </TableCell>
+                  <TableCell 
+                    onClick={() => handleRowClick(article)}
+                    sx={{ backgroundColor: getDeltaBackgroundColor(article.lagerDelta) }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: 'text.primary',
+                        fontWeight: article.lagerDelta !== 0 ? 700 : 400,
+                      }}
+                    >
+                      {formatDelta(article.lagerDelta)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell onClick={() => handleRowClick(article)}>
+                    {article.bestellenBis}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell colSpan={7} sx={{ py: 0, px: 0, overflow: 'hidden', maxWidth: 0 }}>
+                    <Collapse in={expandedRows.has(article.id)} timeout="auto" unmountOnExit>
+                      <Box sx={{ py: 2, px: 2, bgcolor: 'grey.50', overflow: 'hidden', width: '100%' }}>
+                        <Box sx={{ overflowX: 'auto', maxWidth: '100%' }}>
+                          <ForecastTable weeklyData={article.weeklyData} articleId={article.id} compact variant="detail" />
+                        </Box>
+                      </Box>
+                    </Collapse>
+                  </TableCell>
+                </TableRow>
+              </Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Infinite scroll loader */}
+      {displayedCount < sortedArticles.length && (
         <Box
+          ref={loaderRef}
           sx={{
-            px: 3,
-            py: 2,
             display: 'flex',
+            justifyContent: 'center',
             alignItems: 'center',
-            gap: 2,
-            borderBottom: 1,
-            borderColor: 'divider',
+            py: 3,
           }}
         >
-          <TextField
-            placeholder="Artikel suchen..."
-            size="small"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon color="action" />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ flex: 1, maxWidth: 400 }}
-          />
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Status"
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <MenuItem value="">Alle</MenuItem>
-              <MenuItem value="kritisch">Kritisch</MenuItem>
-              <MenuItem value="planen">Planen</MenuItem>
-              <MenuItem value="beobachten">Beobachten</MenuItem>
-            </Select>
-          </FormControl>
-          <IconButton>
-            <FilterListIcon />
-          </IconButton>
-          <Button variant="outlined" startIcon={<DownloadIcon />}>
-            Download
-          </Button>
-          <IconButton>
-            <SettingsIcon />
-          </IconButton>
+          <CircularProgress size={24} />
         </Box>
-
-        {/* Table */}
-        <TableContainer sx={{ overflowX: 'auto', width: '100%' }}>
-          <Table sx={{ minWidth: 800, tableLayout: 'fixed' }}>
-            <TableHead>
-              <TableRow>
-                <TableCell width={50}></TableCell>
-                <TableCell sx={{ fontWeight: 500 }}>
-                  <TableSortLabel
-                    active={sortColumn === 'artikelNr'}
-                    direction={sortColumn === 'artikelNr' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('artikelNr')}
-                  >
-                    Artikel Nr.
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 500 }}>
-                  <TableSortLabel
-                    active={sortColumn === 'bezeichnung'}
-                    direction={sortColumn === 'bezeichnung' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('bezeichnung')}
-                  >
-                    Bezeichnung
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 500 }}>
-                  <TableSortLabel
-                    active={sortColumn === 'status'}
-                    direction={sortColumn === 'status' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('status')}
-                  >
-                    Status
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 500 }}>
-                  <TableSortLabel
-                    active={sortColumn === 'oosIn'}
-                    direction={sortColumn === 'oosIn' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('oosIn')}
-                  >
-                    OOS in
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 500 }}>
-                  <TableSortLabel
-                    active={sortColumn === 'lagerDelta'}
-                    direction={sortColumn === 'lagerDelta' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('lagerDelta')}
-                  >
-                    Lager-Delta
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 500 }}>
-                  <TableSortLabel
-                    active={sortColumn === 'bestellenBis'}
-                    direction={sortColumn === 'bestellenBis' ? sortDirection : 'asc'}
-                    onClick={() => handleSort('bestellenBis')}
-                  >
-                    Bestellen bis
-                  </TableSortLabel>
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {displayedArticles.map((article) => (
-                <Fragment key={article.id}>
-                  <TableRow
-                    hover
-                    sx={{ 
-                      cursor: 'pointer',
-                      '& > td': { borderBottom: expandedRows.has(article.id) ? 0 : undefined },
-                    }}
-                  >
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleExpand(article.id);
-                        }}
-                      >
-                        {expandedRows.has(article.id) ? (
-                          <KeyboardArrowUpIcon />
-                        ) : (
-                          <KeyboardArrowDownIcon />
-                        )}
-                      </IconButton>
-                    </TableCell>
-                    <TableCell 
-                      onClick={() => handleRowClick(article)}
-                      sx={{ fontWeight: 500 }}
-                    >
-                      {article.artikelNr}
-                    </TableCell>
-                    <TableCell onClick={() => handleRowClick(article)}>
-                      {article.bezeichnung}
-                    </TableCell>
-                    <TableCell onClick={() => handleRowClick(article)}>
-                      <StatusChip status={article.status} />
-                    </TableCell>
-                    <TableCell onClick={() => handleRowClick(article)}>
-                      {article.oosIn}
-                    </TableCell>
-                    <TableCell 
-                      onClick={() => handleRowClick(article)}
-                      sx={{ backgroundColor: getDeltaBackgroundColor(article.lagerDelta) }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: 'text.primary',
-                          fontWeight: article.lagerDelta !== 0 ? 700 : 400,
-                        }}
-                      >
-                        {formatDelta(article.lagerDelta)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell onClick={() => handleRowClick(article)}>
-                      {article.bestellenBis}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell colSpan={7} sx={{ py: 0, px: 0, overflow: 'hidden', maxWidth: 0 }}>
-                      <Collapse in={expandedRows.has(article.id)} timeout="auto" unmountOnExit>
-                        <Box sx={{ py: 2, px: 2, bgcolor: 'grey.50', overflow: 'hidden', width: '100%' }}>
-                          <Box sx={{ overflowX: 'auto', maxWidth: '100%' }}>
-                            <ForecastTable weeklyData={article.weeklyData} articleId={article.id} compact variant="detail" />
-                          </Box>
-                        </Box>
-                      </Collapse>
-                    </TableCell>
-                  </TableRow>
-                </Fragment>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        {/* Infinite scroll loader */}
-        {displayedCount < sortedArticles.length && (
-          <Box
-            ref={loaderRef}
-            sx={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              py: 3,
-            }}
-          >
-            <CircularProgress size={24} />
-          </Box>
-        )}
-      </Paper>
+      )}
     </Box>
   );
 }

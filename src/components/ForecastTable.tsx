@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import {
   Table,
   TableBody,
@@ -290,7 +290,7 @@ export default function ForecastTable({
     if (!rowDef.parent) return true;
     
     // Check if all parent rows are expanded
-    let currentParent = rowDef.parent;
+    let currentParent: string | undefined = rowDef.parent;
     while (currentParent) {
       if (!expandedRows.has(currentParent)) return false;
       const parentDef = ROW_DEFINITIONS.find(r => r.id === currentParent);
@@ -530,9 +530,8 @@ export default function ForecastTable({
             const isExpanded = expandedWeeks.has(data.week);
             
             return (
-              <>
+              <Fragment key={`header-${data.week}`}>
                 <TableCell
-                  key={data.week}
                   align="center"
                   sx={{ 
                     padding: cellPadding, 
@@ -576,7 +575,7 @@ export default function ForecastTable({
                     {WEEKDAY_LABELS[day]}
                   </TableCell>
                 ))}
-              </>
+              </Fragment>
             );
           })}
         </TableRow>
@@ -638,14 +637,13 @@ export default function ForecastTable({
               // Skip rendering sales actuals for non-past weeks
               if (rowDef.pastOnly && weekStatus !== 'past') {
                 return (
-                  <>
+                  <Fragment key={`${rowDef.id}-${data.week}`}>
                     <TableCell 
-                      key={data.week} 
                       align="right" 
                       sx={{ 
                         padding: cellPadding,
                         backgroundColor: bgColor,
-                        opacity: weekStatus === 'past' ? 0.8 : 1,
+                        opacity: 1,
                         fontSize: '14px',
                       }}
                     >
@@ -668,7 +666,7 @@ export default function ForecastTable({
                         -
                       </TableCell>
                     ))}
-                  </>
+                  </Fragment>
                 );
               }
 
@@ -679,9 +677,8 @@ export default function ForecastTable({
               // Render editable cell (EditableCell handles PO linking internally for procurementForecast)
               if (editable && articleId) {
                 return (
-                  <>
+                  <Fragment key={`${rowDef.id}-${data.week}`}>
                     <TableCell 
-                      key={data.week} 
                       align="right" 
                       sx={{ 
                         padding: cellPadding,
@@ -698,17 +695,16 @@ export default function ForecastTable({
                       />
                     </TableCell>
                     {isWeekExpanded && renderDailyCells(rowDef, data, weekStatus)}
-                  </>
+                  </Fragment>
                 );
               }
 
               // Render PO row with tooltip
               if (isPORow && linkedPONumber && value && value > 0) {
                 return (
-                  <>
+                  <Fragment key={`${rowDef.id}-${data.week}`}>
                     <Tooltip title={`PO: ${linkedPONumber}`} arrow placement="top">
                       <TableCell 
-                        key={data.week} 
                         align="right" 
                         sx={{ 
                           padding: cellPadding,
@@ -721,15 +717,14 @@ export default function ForecastTable({
                       </TableCell>
                     </Tooltip>
                     {isWeekExpanded && renderDailyCells(rowDef, data, weekStatus)}
-                  </>
+                  </Fragment>
                 );
               }
 
               // Render regular cell
               return (
-                <>
+                <Fragment key={`${rowDef.id}-${data.week}`}>
                   <TableCell 
-                    key={data.week} 
                     align="right" 
                     sx={{ 
                       padding: cellPadding,
@@ -741,7 +736,7 @@ export default function ForecastTable({
                     {formatCellValue(rowDef, value)}
                   </TableCell>
                   {isWeekExpanded && renderDailyCells(rowDef, data, weekStatus)}
-                </>
+                </Fragment>
               );
             })}
           </TableRow>
